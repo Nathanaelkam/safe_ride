@@ -1,0 +1,12 @@
+# Python / FastAPI
+backend/venv/
+backend/__pycache__/
+backend/.env
+
+# React Native / Node
+ frontend/node_modules/
+ frontend/.expo/
+ frontend/.env
+
+# OS Files
+.DS_Store

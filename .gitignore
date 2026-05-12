@@ -11,3 +11,8 @@ backend/node
 
 # OS Files
 .DS_Store
+<<<<<<< HEAD
+=======
+
+context
+>>>>>>> dd9fe24 (Syncing project structure and preparing for rebase)

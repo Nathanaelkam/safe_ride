@@ -1,17 +1,25 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from .database import engine, get_db
 
-app = FastAPI(title="Seva Auth Service", version="1.0.0")
 
-@app.on_event("startup")
-async def startup():
-    pass
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: nothing to create yet (models added on Day 2)
+    yield
+    # Shutdown: dispose the engine
+    await engine.dispose()
+
+
+app = FastAPI(title="Seva Auth Service", version="1.0.0", lifespan=lifespan)
+
 
 @app.get("/health", tags=["health"])
 async def health():
     return {"status": "ok"}
+
 
 @app.get("/db-health", tags=["health"])
 async def db_health(db: AsyncSession = Depends(get_db)):

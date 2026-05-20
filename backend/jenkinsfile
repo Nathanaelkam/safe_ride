@@ -13,7 +13,14 @@ pipeline {
                 checkout scm
             }
         }
-
+        // Add this stage to move into the backend folder
+        stage('Change Directory') {
+            steps {
+                dir('backend') {
+                    // Leave this block empty; subsequent stages will wrap in dir('backend')
+                }
+            }
+        }
         stage('Setup Python Environment') {
             steps {
                 sh '''

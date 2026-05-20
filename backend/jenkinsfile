@@ -1,0 +1,99 @@
+pipeline {
+    agent any
+
+    environment {
+        PYTHON = 'python3'            // Uses your VPS's Python 3.12
+        AUTH_IMAGE = 'seva-auth'
+        TEST_DB_URL = 'postgresql+asyncpg://test:test@localhost:5433/test_auth_db'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Setup Python Environment') {
+            steps {
+                sh '''
+                    $PYTHON -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Run Tests with Coverage') {
+            steps {
+                // Start a temporary Postgres container on port 5433
+                sh '''
+                    docker run -d --name test-auth-db \
+                        -e POSTGRES_USER=test \
+                        -e POSTGRES_PASSWORD=test \
+                        -e POSTGRES_DB=test_auth_db \
+                        -p 5433:5432 \
+                        postgres:15-alpine
+                    sleep 5   # wait for DB to be ready
+                '''
+                sh '''
+                    . venv/bin/activate
+                    pytest \
+                        --cov=services/auth \
+                        --cov-report=term-missing \
+                        --cov-report=xml:coverage.xml \
+                        --cov-fail-under=80 \
+                        tests/
+                '''
+            }
+            post {
+                always {
+                    // Clean up the test container
+                    sh 'docker stop test-auth-db && docker rm test-auth-db || true'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def commitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    sh """
+                        docker build -f Dockerfile.auth -t ${AUTH_IMAGE}:${commitHash} .
+                    """
+                }
+            }
+        }
+
+        stage('Push to Registry (Optional)') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    def commitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    // Uncomment and configure if you have a registry
+                    // sh "docker tag ${AUTH_IMAGE}:${commitHash} yourregistry/${AUTH_IMAGE}:${commitHash}"
+                    // sh "docker push yourregistry/${AUTH_IMAGE}:${commitHash}"
+                    echo "Skipping push – configure your registry credentials"
+                }
+            }
+        }
+
+        stage('Deploy to Test Environment (Future)') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'This stage will later apply Kubernetes manifests via kubectl or Ansible'
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}

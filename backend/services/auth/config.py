@@ -10,4 +10,5 @@ class AuthSettings(BaseSettings):
     access_token_expire_minutes: int = 30
 
 
+# Create the global settings instance that database.py and main.py import
 settings = AuthSettings()

@@ -1,39 +1,56 @@
+import asyncio
 import pytest
-from httpx import AsyncClient
+import pytest_asyncio
+from httpx import AsyncClient, ASGITransport
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from services.auth.main import app
 from services.auth.database import get_db
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-import asyncio
+from services.auth.models import Base   # <-- needed for create_all / drop_all
 
-# Use a separate test database; in CI, Jenkins will spin up a test Postgres container
 TEST_DATABASE_URL = "postgresql+asyncpg://test:test@localhost:5433/test_auth_db"
 
-@pytest.fixture(scope="session")
+
+@pytest.fixture(scope="function")
 def event_loop():
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 
-@pytest.fixture(scope="session")
-async def test_engine():
-    eng = create_async_engine(TEST_DATABASE_URL)
-    yield eng
-    await eng.dispose()
 
-@pytest.fixture
+@pytest_asyncio.fixture(scope="function")
+async def test_engine():
+    engine = create_async_engine(TEST_DATABASE_URL)
+    # Ensure a clean slate for every test
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="function")
 async def db_session(test_engine):
-    async_session = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    async_session = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
     async with async_session() as session:
         yield session
+        await session.rollback()
 
-@pytest.fixture
+
+@pytest_asyncio.fixture(scope="function")
 async def client(db_session):
     async def override_get_db():
         yield db_session
+
     app.dependency_overrides[get_db] = override_get_db
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
+
 
 @pytest.mark.asyncio
 async def test_health_check(client):
@@ -41,11 +58,28 @@ async def test_health_check(client):
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 
+
 @pytest.mark.asyncio
-async def test_db_health_success(client, db_session):
-    # We need to ensure the test database exists; Jenkins will handle that via docker run
-    # For local tests, you'll spin up the test DB manually or use the same compose.
+async def test_db_health_success(client):
     resp = await client.get("/db-health")
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["database"] == "connected"
+    assert resp.json() == {"database": "connected"}
+
+
+@pytest.mark.asyncio
+async def test_db_health_failure(client, db_session):
+    from unittest.mock import AsyncMock
+
+    mock_session = AsyncMock(spec=AsyncSession)
+    mock_session.execute = AsyncMock(side_effect=Exception("Simulated failure"))
+
+    async def faulty_override():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = faulty_override
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.get("/db-health")
+    app.dependency_overrides.clear()
+    assert resp.status_code == 500
+    assert "Database connection failed" in resp.json()["detail"]

@@ -1,11 +1,13 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class AuthSettings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://seva:seva@localhost:5432/auth_db"
-    secret_key: str = "dev-secret-key"   # will be used later for JWT
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="AUTH_")
 
-    class Config:
-        env_file = ".env"
-        env_prefix = "AUTH_"   # e.g., AUTH_DATABASE_URL
+    database_url: str = "postgresql+asyncpg://seva:seva@localhost:5432/auth_db"
+    secret_key: str = "change-me-in-prod"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+
 
 settings = AuthSettings()

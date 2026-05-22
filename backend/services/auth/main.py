@@ -3,17 +3,24 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from .database import engine, get_db
+from .models import Base
+from .routers import register, login, contacts
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: nothing to create yet (models added on Day 2)
+    # Create tables on startup for development; in production use Alembic migrations
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     yield
-    # Shutdown: dispose the engine
     await engine.dispose()
 
 
 app = FastAPI(title="Seva Auth Service", version="1.0.0", lifespan=lifespan)
+
+app.include_router(register.router)
+app.include_router(login.router)
+app.include_router(contacts.router)
 
 
 @app.get("/health", tags=["health"])

@@ -1,6 +1,15 @@
-version: '3.8'
-
 services:
+  emergency-redis:
+    image: redis:7-alpine
+    container_name: seva-emergency-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   auth-postgres:
     image: postgres:15-alpine
     container_name: seva-auth-db
@@ -29,6 +38,19 @@ services:
       - "8001:8000"
     depends_on:
       auth-postgres:
+        condition: service_healthy
+
+  emergency-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.emergency
+    container_name: seva-emergency-service
+    environment:
+      EMERGENCY_REDIS_URL: redis://emergency-redis:6379/0
+    ports:
+      - "8002:8000"
+    depends_on:
+      emergency-redis:
         condition: service_healthy
 
 volumes:

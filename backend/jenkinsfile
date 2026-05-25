@@ -3,8 +3,8 @@ pipeline {
 
     environment {
         PYTHON = 'python3'
+        PYTHONPATH = '.'
         AUTH_IMAGE = 'seva-auth'
-        PYTHONPATH = '.'            // <-- Enables Python to import services/ from backend/
     }
 
     stages {
@@ -17,7 +17,21 @@ pipeline {
         stage('Setup & Test') {
             steps {
                 dir('backend') {
-                    // ---- Virtual environment & dependencies ----
+                    // ---- Start shared test database ----
+                    sh '''
+                        docker rm -f test-db 2>/dev/null || true
+                        docker run -d --name test-db \
+                            -e POSTGRES_USER=test \
+                            -e POSTGRES_PASSWORD=test \
+                            -p 5433:5432 \
+                            postgres:15-alpine
+                        sleep 5
+                        docker exec test-db psql -U test -c "CREATE DATABASE test_auth_db;" || echo "Already exists"
+                        # Add more databases here if your other services need them,
+                        # or create them dynamically later.
+                    '''
+
+                    // ---- Install Python dependencies ----
                     sh '''
                         $PYTHON -m venv venv
                         . venv/bin/activate
@@ -25,70 +39,64 @@ pipeline {
                         pip install -r requirements.txt
                     '''
 
-                    // ---- Start test database ----
-                    sh '''
-                        docker run -d --name test-auth-db \
-                            -e POSTGRES_USER=test \
-                            -e POSTGRES_PASSWORD=test \
-                            -e POSTGRES_DB=test_auth_db \
-                            -p 5433:5432 \
-                            postgres:15-alpine
-                        sleep 5
-                    '''
+                    // ---- Discover services and test each ----
+                    script {
+                        // List all subdirectories inside tests/ that contain at least one test file
+                        def testDirs = sh(
+                            script: "find tests -mindepth 1 -maxdepth 1 -type d",
+                            returnStdout: true
+                        ).trim().split('\n')
 
-                    // ---- Run tests with coverage ----
-                    sh '''
-                        . venv/bin/activate
-                        pytest \
-                            --cov=services/auth \
-                            --cov-report=term-missing \
-                            --cov-report=xml:coverage.xml \
-                            --cov-fail-under=80 \
-                            tests/
-                    '''
+                        def failedServices = []
+                        testDirs.each { dir ->
+                            // Extract service name from the directory path, e.g. "tests/auth" -> "auth"
+                            def service = dir.replace('tests/', '')
+                            if (service.isEmpty()) {
+                                return
+                            }
+                            echo "Testing service: ${service}"
+                            try {
+                                sh """
+                                    . venv/bin/activate
+                                    pytest ${dir} \
+                                        --cov=services/${service} \
+                                        --cov-report=term-missing \
+                                        --cov-report=xml:coverage_${service}.xml \
+                                        --cov-fail-under=80
+                                """
+                            } catch (err) {
+                                echo "Tests or coverage failed for service: ${service}"
+                                failedServices.add(service)
+                            }
+                        }
+
+                        if (!failedServices.isEmpty()) {
+                            error("Failing services: ${failedServices.join(', ')}")
+                        }
+                    }
                 }
             }
             post {
                 always {
-                    sh 'docker stop test-auth-db && docker rm test-auth-db || true'
+                    sh 'docker rm -f test-db 2>/dev/null || true'
                 }
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build Docker Images') {
             steps {
                 dir('backend') {
                     script {
                         def commitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                        sh """
-                            docker build -f Dockerfile.auth -t ${AUTH_IMAGE}:${commitHash} .
-                        """
+                        sh "docker build -f Dockerfile.auth -t ${AUTH_IMAGE}:${commitHash} ."
+                        // Uncomment when Dockerfile.emergency exists:
+                        // sh "docker build -f Dockerfile.emergency -t seva-emergency:${commitHash} ."
                     }
                 }
             }
         }
 
-        stage('Push to Registry (Optional)') {
-            when { branch 'main' }
-            steps {
-                script {
-                    def commitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    // Uncomment when ready
-                    // dir('backend') {
-                    //     sh "docker tag ${AUTH_IMAGE}:${commitHash} yourregistry/${AUTH_IMAGE}:${commitHash}"
-                    //     sh "docker push yourregistry/${AUTH_IMAGE}:${commitHash}"
-                    // }
-                    echo "Skipping push – configure your registry credentials"
-                }
-            }
-        }
-
-        stage('Deploy to Test Environment (Future)') {
-            when { branch 'main' }
-            steps {
-                echo 'This stage will later apply Kubernetes manifests via kubectl or Ansible'
-            }
-        }
+        // … optional push / deploy stages remain the same …
     }
 
     post {

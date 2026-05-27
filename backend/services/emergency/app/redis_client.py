@@ -76,10 +76,16 @@ async def publish_sos_event(payload: dict) -> None:
         return
 
     try:
+        # Publish using Pub/Sub for the new Notification Service
+        import json
+        await _redis_client.publish("emergency.sos", json.dumps(payload))
+        
+        # Dual-publish to the original Stream just in case
         await _redis_client.xadd(settings.sos_stream_key, payload)
+        
         SOS_PUBLISHED_COUNTER.inc()
         logger.info(
-            "SOS_TRIGGERED published to stream '%s': %s",
+            "SOS_TRIGGERED published to stream '%s' and channel 'emergency.sos': %s",
             settings.sos_stream_key,
             payload,
         )

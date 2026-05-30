@@ -5,6 +5,7 @@ from ..database import get_db
 from ..models import User
 from ..schemas import UserRegister, UserOut
 from ..auth_utils import hash_password
+from ..metrics import inc_active_users
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -24,4 +25,5 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    inc_active_users()
     return user

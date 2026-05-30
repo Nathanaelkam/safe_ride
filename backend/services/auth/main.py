@@ -4,8 +4,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from .database import engine, get_db
 from .models import Base
-from .routers import register, login, contacts
-
+from .routers import register, login, contacts, refresh
+from .metrics import PrometheusMiddleware, metrics_endpoint
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -18,9 +18,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Seva Auth Service", version="1.0.0", lifespan=lifespan)
 
+app.add_middleware(PrometheusMiddleware)
+app.add_route("/metrics", metrics_endpoint)
+
 app.include_router(register.router)
 app.include_router(login.router)
 app.include_router(contacts.router)
+app.include_router(refresh.router)
 
 
 @app.get("/health", tags=["health"])

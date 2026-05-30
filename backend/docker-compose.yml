@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   auth-postgres:
     image: postgres:15-alpine
@@ -9,7 +7,7 @@ services:
       POSTGRES_PASSWORD: seva
       POSTGRES_DB: auth_db
     ports:
-      - "5432:5432"   # for local inspection, remove in production
+      - "5432:5432"
     volumes:
       - auth_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -25,11 +23,49 @@ services:
     container_name: seva-auth-service
     environment:
       AUTH_DATABASE_URL: postgresql+asyncpg://seva:seva@auth-postgres:5432/auth_db
+      AUTH_SECRET_KEY: "super-secret-change-me"
     ports:
       - "8001:8000"
     depends_on:
       auth-postgres:
         condition: service_healthy
 
+  emergency-redis:
+    image: redis:7-alpine
+    container_name: seva-redis
+    ports:
+      - "6379:6379"
+
+  tracking-postgres:
+    image: postgres:15-alpine
+    container_name: seva-tracking-db
+    environment:
+      POSTGRES_USER: seva
+      POSTGRES_PASSWORD: seva
+      POSTGRES_DB: tracking_db
+    volumes:
+      - tracking_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seva -d tracking_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  tracking-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.tracking
+    container_name: seva-tracking-service
+    environment:
+      TRACKING_DATABASE_URL: postgresql+asyncpg://seva:seva@tracking-postgres:5432/tracking_db
+      TRACKING_REDIS_URL: redis://emergency-redis:6379/0
+      TRACKING_SECRET_KEY: "super-secret-change-me"
+    ports:
+      - "8002:8000"
+    depends_on:
+      tracking-postgres:
+        condition: service_healthy
+
 volumes:
   auth_pgdata:
+  tracking_pgdata:

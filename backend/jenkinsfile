@@ -5,6 +5,7 @@ pipeline {
         PYTHON = 'python3'
         PYTHONPATH = '.'
         AUTH_IMAGE = 'seva-auth'
+        TRACKING_IMAGE = 'seva-tracking'
     }
 
     stages {
@@ -19,7 +20,7 @@ pipeline {
                 dir('backend') {
                     // ---- Start shared test database ----
                     sh '''
-                        docker rm -f test-db 2>/dev/null || true
+                        docker rm -f test-db test-redis 2>/dev/null || true
                         docker run -d --name test-db \
                             -e POSTGRES_USER=test \
                             -e POSTGRES_PASSWORD=test \
@@ -27,8 +28,13 @@ pipeline {
                             postgres:15-alpine
                         sleep 5
                         docker exec test-db psql -U test -c "CREATE DATABASE test_auth_db;" || echo "Already exists"
-                        # Add more databases here if your other services need them,
-                        # or create them dynamically later.
+                        docker exec test-db psql -U test -c "CREATE DATABASE test_tracking_db;" || echo "Already exists"
+                    '''
+
+                    // ---- Start test Redis ----
+                    sh '''
+                        docker run -d --name test-redis -p 6380:6379 redis:7-alpine
+                        sleep 3
                     '''
 
                     // ---- Install Python dependencies ----
@@ -41,7 +47,6 @@ pipeline {
 
                     // ---- Discover services and test each ----
                     script {
-                        // List all subdirectories inside tests/ that contain at least one test file
                         def testDirs = sh(
                             script: "find tests -mindepth 1 -maxdepth 1 -type d",
                             returnStdout: true
@@ -49,7 +54,6 @@ pipeline {
 
                         def failedServices = []
                         testDirs.each { dir ->
-                            // Extract service name from the directory path, e.g. "tests/auth" -> "auth"
                             def service = dir.replace('tests/', '')
                             if (service.isEmpty()) {
                                 return
@@ -78,7 +82,7 @@ pipeline {
             }
             post {
                 always {
-                    sh 'docker rm -f test-db 2>/dev/null || true'
+                    sh 'docker rm -f test-db test-redis 2>/dev/null || true'
                 }
             }
         }
@@ -89,14 +93,15 @@ pipeline {
                     script {
                         def commitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                         sh "docker build -f Dockerfile.auth -t ${AUTH_IMAGE}:${commitHash} ."
-                        // Uncomment when Dockerfile.emergency exists:
+                        sh "docker build -f Dockerfile.tracking -t ${TRACKING_IMAGE}:${commitHash} ."
+                        // Emergency service (when ready):
                         // sh "docker build -f Dockerfile.emergency -t seva-emergency:${commitHash} ."
                     }
                 }
             }
         }
 
-        // … optional push / deploy stages remain the same …
+        // … optional push / deploy stages …
     }
 
     post {

@@ -27,6 +27,7 @@ class UserOut(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
 
 
@@ -43,3 +44,6 @@ class ContactResponse(BaseModel):
     status: str
 
     model_config = {"from_attributes": True}
+
+class RefreshRequest(BaseModel):
+    refresh_token: str

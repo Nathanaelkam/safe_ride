@@ -1,4 +1,15 @@
 services:
+  emergency-redis:
+    image: redis:7-alpine
+    container_name: seva-emergency-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   auth-postgres:
     image: postgres:15-alpine
     container_name: seva-auth-db
@@ -64,6 +75,50 @@ services:
       - "8002:8000"
     depends_on:
       tracking-postgres:
+        condition: service_healthy
+
+  emergency-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.emergency
+    container_name: seva-emergency-service
+    environment:
+      EMERGENCY_REDIS_URL: redis://emergency-redis:6379/0
+    ports:
+      - "8002:8000"
+    depends_on:
+      emergency-redis:
+        condition: service_healthy
+
+  route-analysis-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.route_analysis
+    container_name: seva-route-analysis-service
+    ports:
+      - "8003:8000"
+    environment:
+      # Explicit URL mappings inside Docker networking
+      ROUTE_ANALYSIS_DATABASE_URL: postgresql+asyncpg://seva:seva@auth-postgres:5432/tracking_db
+      ROUTE_ANALYSIS_REDIS_URL: redis://emergency-redis:6379/0
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+      emergency-redis:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.notification
+    container_name: seva-notification-service
+    ports:
+      - "8004:8000"
+    environment:
+      NOTIFICATION_REDIS_URL: redis://emergency-redis:6379/0
+      AUTH_SERVICE_URL: http://auth-service:8000
+    depends_on:
+      emergency-redis:
         condition: service_healthy
 
 volumes:

@@ -102,3 +102,14 @@ async def respond_handshake(
     await db.refresh(contact)
     inc_contacts_created()
     return contact
+
+@router.get("/user/{user_id}", response_model=List[ContactResponse])
+async def get_contacts_by_user(user_id: str, db: AsyncSession = Depends(get_db)):
+    """Return all ACCEPTED contacts for a given user (internal use)."""
+    result = await db.execute(
+        select(UserContact).where(
+            UserContact.user_id == user_id,
+            UserContact.status == HandshakeStatus.ACCEPTED
+        )
+    )
+    return result.scalars().all()

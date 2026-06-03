@@ -6,6 +6,7 @@ from .database import engine, get_db
 from .models import Base
 from .routers import register, login, contacts, refresh
 from .metrics import PrometheusMiddleware, metrics_endpoint
+from .routers import internal
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,6 +26,7 @@ app.include_router(register.router)
 app.include_router(login.router)
 app.include_router(contacts.router)
 app.include_router(refresh.router)
+app.include_router(internal.router)
 
 
 @app.get("/health", tags=["health"])

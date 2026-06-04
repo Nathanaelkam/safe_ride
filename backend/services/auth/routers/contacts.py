@@ -9,6 +9,7 @@ from ..models import User, UserContact, HandshakeStatus
 from ..schemas import ContactCreate, ContactResponse
 from ..auth_utils import decode_access_token
 from fastapi.security import OAuth2PasswordBearer
+from ..metrics import inc_contacts_created
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -59,6 +60,7 @@ async def add_contact(
     db.add(contact)
     await db.commit()
     await db.refresh(contact)
+    inc_contacts_created()
     return contact
 
 
@@ -93,10 +95,21 @@ async def respond_handshake(
     if not contact:
         raise HTTPException(status_code=404, detail="Pending contact request not found")
 
-    if action not in (HandshakeStatus.ACCEPTED, HandshakeStatus.REJECTED):
-        raise HTTPException(status_code=400, detail="Must be ACCEPTED or REJECTED")
+    
 
     contact.status = action
     await db.commit()
     await db.refresh(contact)
+    inc_contacts_created()
     return contact
+
+@router.get("/user/{user_id}", response_model=List[ContactResponse])
+async def get_contacts_by_user(user_id: str, db: AsyncSession = Depends(get_db)):
+    """Return all ACCEPTED contacts for a given user (internal use)."""
+    result = await db.execute(
+        select(UserContact).where(
+            UserContact.user_id == user_id,
+            UserContact.status == HandshakeStatus.ACCEPTED
+        )
+    )
+    return result.scalars().all()

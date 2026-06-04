@@ -1,7 +1,8 @@
 services:
+  # ----------------- Shared Redis -----------------
   emergency-redis:
     image: redis:7-alpine
-    container_name: seva-emergency-redis
+    container_name: seva-redis
     ports:
       - "6379:6379"
     healthcheck:
@@ -10,6 +11,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # ----------------- Auth Service -----------------
   auth-postgres:
     image: postgres:15-alpine
     container_name: seva-auth-db
@@ -18,7 +20,7 @@ services:
       POSTGRES_PASSWORD: seva
       POSTGRES_DB: auth_db
     ports:
-      - "5432:5432"   # for local inspection, remove in production
+      - "5432:5432"
     volumes:
       - auth_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -34,12 +36,45 @@ services:
     container_name: seva-auth-service
     environment:
       AUTH_DATABASE_URL: postgresql+asyncpg://seva:seva@auth-postgres:5432/auth_db
+      AUTH_SECRET_KEY: "super-secret-change-me"
     ports:
       - "8001:8000"
     depends_on:
       auth-postgres:
         condition: service_healthy
 
+  # ----------------- Tracking Service -----------------
+  tracking-postgres:
+    image: postgres:15-alpine
+    container_name: seva-tracking-db
+    environment:
+      POSTGRES_USER: seva
+      POSTGRES_PASSWORD: seva
+      POSTGRES_DB: tracking_db
+    volumes:
+      - tracking_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seva -d tracking_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  tracking-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.tracking
+    container_name: seva-tracking-service
+    environment:
+      TRACKING_DATABASE_URL: postgresql+asyncpg://seva:seva@tracking-postgres:5432/tracking_db
+      TRACKING_REDIS_URL: redis://emergency-redis:6379/0
+      TRACKING_SECRET_KEY: "super-secret-change-me"
+    ports:
+      - "8002:8000"
+    depends_on:
+      tracking-postgres:
+        condition: service_healthy
+
+  # ----------------- Emergency Service -----------------
   emergency-service:
     build:
       context: .
@@ -48,41 +83,41 @@ services:
     environment:
       EMERGENCY_REDIS_URL: redis://emergency-redis:6379/0
     ports:
-      - "8002:8000"
+      - "8003:8000"               # was 8002 – conflict fixed
     depends_on:
       emergency-redis:
         condition: service_healthy
 
+  # ----------------- Route Analysis Service -----------------
   route-analysis-service:
     build:
       context: .
       dockerfile: Dockerfile.route_analysis
     container_name: seva-route-analysis-service
-    ports:
-      - "8003:8000"
     environment:
-      # Explicit URL mappings inside Docker networking
-      ROUTE_ANALYSIS_DATABASE_URL: postgresql+asyncpg://seva:seva@auth-postgres:5432/tracking_db
       ROUTE_ANALYSIS_REDIS_URL: redis://emergency-redis:6379/0
+      # No database needed (stateless)
+    ports:
+      - "8004:8000"               # was 8003 – moved up to avoid conflict
     depends_on:
-      auth-postgres:
-        condition: service_healthy
       emergency-redis:
         condition: service_healthy
 
+  # ----------------- Notification Service -----------------
   notification-service:
     build:
       context: .
       dockerfile: Dockerfile.notification
     container_name: seva-notification-service
-    ports:
-      - "8004:8000"
     environment:
       NOTIFICATION_REDIS_URL: redis://emergency-redis:6379/0
       AUTH_SERVICE_URL: http://auth-service:8000
+    ports:
+      - "8005:8000"               # was 8004 – moved up
     depends_on:
       emergency-redis:
         condition: service_healthy
 
 volumes:
   auth_pgdata:
+  tracking_pgdata:

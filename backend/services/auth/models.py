@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, Enum as SQLEnum, ForeignKey, func
+from sqlalchemy import Column, String, DateTime, Boolean, Enum as SQLEnum, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, relationship
 import enum
@@ -41,3 +41,13 @@ class UserContact(Base):
 
     # Relationship
     owner = relationship("User", back_populates="contacts", foreign_keys=[user_id])
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String, nullable=False, unique=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    revoked = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

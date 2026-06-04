@@ -16,3 +16,6 @@ backend/node
 
 context
 >>>>>>> dd9fe24 (Syncing project structure and preparing for rebase)
+__pycache__/
+.coverage
+coverage.xml

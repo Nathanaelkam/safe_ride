@@ -88,3 +88,16 @@ async def test_complete_trip_wrong_user(client):
 async def test_start_trip_invalid_token(client):
     resp = await client.post("/trips/start", headers={"Authorization": "Bearer invalid"})
     assert resp.status_code == 401
+
+@pytest.mark.asyncio
+async def test_complete_trip_twice(client):
+    token = create_token()
+    # Start and complete a trip
+    resp = await client.post("/trips/start", headers={"Authorization": f"Bearer {token}"})
+    trip_id = resp.json()["id"]
+    await client.post(f"/trips/{trip_id}/complete", headers={"Authorization": f"Bearer {token}"})
+
+    # Try to complete again → should fail
+    resp = await client.post(f"/trips/{trip_id}/complete", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Trip not active"

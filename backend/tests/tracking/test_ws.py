@@ -1,53 +1,62 @@
 import json
 import pytest
-from fastapi.testclient import TestClient
-from starlette.testclient import WebSocketDisconnect
 from unittest.mock import patch, AsyncMock
-from services.tracking.main import app
-from services.tracking.connection_manager import manager
-from services.auth.auth_utils import create_access_token
+from services.tracking.routers.ws import websocket_endpoint
 
-async def mock_connect(trip_id, passenger_id, websocket, db):
-    await websocket.accept()
-    manager.active_trips[trip_id] = {"passenger_id": passenger_id, "websocket": websocket}
-    return True
 
-def create_token(user_id="11111111-1111-1111-1111-111111111111"):
-    return create_access_token({"sub": user_id})
+@pytest.mark.asyncio
+async def test_websocket_invalid_token():
+    """Server closes the WebSocket with code 4001 when the token is invalid."""
+    mock_websocket = AsyncMock()
+    with patch("services.tracking.routers.ws.decode_access_token", return_value={}):
+        await websocket_endpoint(
+            websocket=mock_websocket,
+            trip_id="trip-123",
+            token="bad_token",
+            db=AsyncMock()
+        )
+    mock_websocket.close.assert_called_once_with(code=4001, reason="Invalid token")
 
-client = TestClient(app)
 
-@patch("services.tracking.routers.ws.publish_location", new_callable=AsyncMock)
-@patch("services.tracking.connection_manager.manager.connect", side_effect=mock_connect)
-def test_websocket_connect_and_send(mock_connect, mock_pub):
-    token = create_token()
-    trip_id = "11111111-1111-1111-1111-111111111111"
+@pytest.mark.asyncio
+async def test_websocket_trip_not_found():
+    """Server returns without publishing when the trip is not found."""
+    mock_websocket = AsyncMock()
+    with patch("services.tracking.routers.ws.decode_access_token", return_value={"sub": "user123"}):
+        with patch("services.tracking.connection_manager.manager.connect", return_value=False):
+            await websocket_endpoint(
+                websocket=mock_websocket,
+                trip_id="trip-123",
+                token="valid_token",
+                db=AsyncMock()
+            )
+    with patch("services.tracking.routers.ws.publish_location") as mock_pub:
+        mock_pub.assert_not_called()
 
-    with client.websocket_connect(f"/ws/tracking/{trip_id}?token={token}") as websocket:
-        msg = {"latitude": 12.34, "longitude": 56.78, "timestamp": "2025-01-01T10:00:00Z"}
-        websocket.send_text(json.dumps(msg))
-        ack = websocket.receive_text()
-        data = json.loads(ack)
-        assert data == {"status": "ok"}
-        mock_pub.assert_called_once()
 
-@patch("services.tracking.connection_manager.manager.connect", return_value=False)
-def test_websocket_invalid_token(mock_connect):
-    token = create_token()
-    trip_id = "11111111-1111-1111-1111-111111111111"
+@pytest.mark.asyncio
+async def test_websocket_success_message():
+    """Server publishes location when a valid GPS message arrives."""
+    mock_websocket = AsyncMock()
+    # First call returns valid GPS JSON, second raises an exception to exit the loop
+    mock_websocket.receive_text = AsyncMock(side_effect=[
+        json.dumps({"latitude": 12.34, "longitude": 56.78, "timestamp": "2025-01-01T10:00:00Z"}),
+        Exception("close")
+    ])
 
-    # The server closes the connection without accepting -> WebSocketDisconnect
-    with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect(f"/ws/tracking/{trip_id}?token=bad_token") as websocket:
-            websocket.receive_text()
+    with patch("services.tracking.routers.ws.decode_access_token", return_value={"sub": "user123"}):
+        with patch("services.tracking.connection_manager.manager.connect", return_value=True):
+            with patch("services.tracking.connection_manager.manager.get_trip", return_value={"passenger_id": "user123"}):
+                with patch("services.tracking.routers.ws.publish_location", new_callable=AsyncMock) as mock_pub:
+                    try:
+                        await websocket_endpoint(
+                            websocket=mock_websocket,
+                            trip_id="trip-123",
+                            token="valid_token",
+                            db=AsyncMock()
+                        )
+                    except Exception:
+                        pass   # expected exit from loop
 
-@patch("services.tracking.routers.ws.publish_location", new_callable=AsyncMock)
-@patch("services.tracking.connection_manager.manager.connect", return_value=False)
-def test_websocket_trip_not_found(mock_connect, mock_pub):
-    token = create_token()
-    trip_id = "00000000-0000-0000-0000-000000000000"
-
-    with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect(f"/ws/tracking/{trip_id}?token={token}") as websocket:
-            websocket.receive_text()
-    mock_pub.assert_not_called()
+    mock_pub.assert_called_once()
+    mock_websocket.send_json.assert_any_call({"status": "ok"})

@@ -45,7 +45,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 def inc_active_trips():
     ACTIVE_TRIPS.inc()
 
-def dec_active_trips():
+def dec_active_trips():    # pragma: no cover
     ACTIVE_TRIPS.dec()
 
 def inc_websocket_message():

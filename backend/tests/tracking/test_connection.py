@@ -26,3 +26,25 @@ async def test_get_trip():
     mgr.active_trips["trip1"] = {"passenger_id": "u1"}
     assert mgr.get_trip("trip1") is not None
     assert mgr.get_trip("nonexistent") is None
+
+@pytest.mark.asyncio
+async def test_connect_fail_trip_not_active():
+    from services.tracking.models import Trip, TripStatus
+    mgr = ConnectionManager()
+    websocket = AsyncMock(spec=WebSocket)
+    db = AsyncMock()
+    # Simulate a trip that exists but is not ACTIVE
+    trip = Trip(id="some-id", passenger_id="user-id", status=TripStatus.COMPLETED)
+    db.execute = AsyncMock(return_value=MagicMock(
+        scalars=lambda: MagicMock(first=lambda: trip)
+    ))
+    result = await mgr.connect("some-id", "user-id", websocket, db)
+    assert result is False
+    websocket.close.assert_called_once_with(code=4003, reason="Trip not active")
+
+@pytest.mark.asyncio
+async def test_get_db_dependency():
+    from services.tracking.database import get_db
+    gen = get_db()
+    session = await gen.__anext__()
+    assert session is not None

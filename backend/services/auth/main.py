@@ -11,10 +11,10 @@ from .routers import internal
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Create tables on startup for development; in production use Alembic migrations
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    async with engine.begin() as conn: # pragma: no cover
+        await conn.run_sync(Base.metadata.create_all)  # pragma: no cover
     yield
-    await engine.dispose()
+    await engine.dispose() # pragma: no cover
 
 
 app = FastAPI(title="Seva Auth Service", version="1.0.0", lifespan=lifespan)

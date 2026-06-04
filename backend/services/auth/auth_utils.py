@@ -38,3 +38,5 @@ def generate_refresh_token() -> str:
 def hash_token(token: str) -> str:
     """Return a SHA‑256 hash of the token."""
     return hashlib.sha256(token.encode()).hexdigest()
+
+# To use these utilities, simply import them in your routers or services where needed. For example:

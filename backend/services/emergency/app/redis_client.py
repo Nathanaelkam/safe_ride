@@ -77,7 +77,7 @@ async def publish_sos_event(payload: dict) -> None:
 
     try:
         # Publish using Pub/Sub for the new Notification Service
-        import json
+        
         await _redis_client.publish("emergency.sos", json.dumps(payload))
         
         # Dual-publish to the original Stream just in case

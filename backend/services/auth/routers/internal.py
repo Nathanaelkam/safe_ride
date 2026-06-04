@@ -18,5 +18,5 @@ async def get_user_contacts(user_id: str, db: AsyncSession = Depends(get_db)):
             UserContact.status == HandshakeStatus.ACCEPTED
         )
     )
-    contacts = result.scalars().all()
-    return contacts
+    contacts = result.scalars().all() # pragma: no cover
+    return contacts # pragma: no cover

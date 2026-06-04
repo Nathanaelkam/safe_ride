@@ -48,7 +48,7 @@ pipeline {
                     // ---- Discover services and test each ----
                     script {
                         def testDirs = sh(
-                            script: "find tests -mindepth 1 -maxdepth 1 -type d",
+                            script: "find tests -mindepth 1 -maxdepth 1 -type d -not -name '__pycache__'",
                             returnStdout: true
                         ).trim().split('\n')
 

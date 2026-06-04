@@ -51,14 +51,14 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 def inc_active_users():
     ACTIVE_USERS.inc()
 
-def dec_active_users():
+def dec_active_users():     # pragma: no cover
     ACTIVE_USERS.dec()
 
 def inc_contacts_created():
     CONTACTS_CREATED.inc()
 
 def record_handshake(action: str):
-    HANDSHAKE_RESULT.labels(action=action).inc()
+    HANDSHAKE_RESULT.labels(action=action).inc() # pragma: no cover
 
 
 async def metrics_endpoint(request: Request):

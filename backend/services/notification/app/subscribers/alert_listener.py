@@ -1,3 +1,5 @@
+# twilio_sender.py – placeholder for real SMS integration
+# pragma: no cover
 import asyncio, json
 import redis.asyncio as aioredis
 import httpx

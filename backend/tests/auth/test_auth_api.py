@@ -3,6 +3,7 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import select, text
+import asyncio
 
 from services.auth.main import app
 from services.auth.database import get_db
@@ -12,15 +13,27 @@ from services.auth.auth_utils import create_access_token
 TEST_DATABASE_URL = "postgresql+asyncpg://test:test@localhost:5433/test_auth_db"
 
 
+
+
 @pytest_asyncio.fixture(scope="function")
 async def test_engine():
     engine = create_async_engine(TEST_DATABASE_URL)
+    # Retry until the database is ready (maximum 10 attempts)
+    for attempt in range(10):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(lambda c: None)   # just test connectivity
+                break
+        except Exception:
+            await asyncio.sleep(1)
+    else:
+        raise RuntimeError("Test database not reachable")
+    
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield engine
     await engine.dispose()
-
 
 @pytest_asyncio.fixture
 async def db_session(test_engine):

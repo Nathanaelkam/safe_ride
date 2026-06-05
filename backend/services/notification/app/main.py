@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from .subscribers.alert_listener import run_subscriber
+from fastapi.middleware.cors import CORSMiddleware
 
 subscriber_task = None
 
@@ -22,6 +23,14 @@ async def lifespan(app: FastAPI):
             pass # pragma: no cover
 
 app = FastAPI(title="Notification Service", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*", "http://localhost:8080"],        
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/health")
 async def health_check():

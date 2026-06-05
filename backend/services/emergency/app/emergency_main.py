@@ -28,6 +28,7 @@ from fastapi import FastAPI
 
 from .redis_client import lifespan
 from .routers import health, emergency
+from fastapi.middleware.cors import CORSMiddleware
 
 logging.basicConfig(level=logging.INFO)
 
@@ -40,6 +41,14 @@ app = FastAPI(
         "consumption by the Notification Service."
     ),
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*", "http://localhost:8080"],        
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(health.router)

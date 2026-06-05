@@ -2,7 +2,11 @@ import json
 import pytest
 from unittest.mock import patch, AsyncMock
 from services.tracking.routers.ws import websocket_endpoint
-
+from services.tracking.routers.ws import view_websocket
+from starlette.websockets import WebSocketDisconnect
+from unittest.mock import MagicMock
+from services.tracking.models import Trip, TripStatus
+from services.auth.auth_utils import create_access_token
 
 @pytest.mark.asyncio
 async def test_websocket_invalid_token():
@@ -60,3 +64,31 @@ async def test_websocket_success_message():
 
     mock_pub.assert_called_once()
     mock_websocket.send_json.assert_any_call({"status": "ok"})
+
+
+@pytest.mark.asyncio
+async def test_view_websocket_valid_token():
+    mock_ws = AsyncMock()
+    share_token = create_access_token({"sub": "user1", "trip_id": "trip1", "scope": "view"})
+
+    # Mock DB to return an active trip
+    trip = Trip(id="trip1", passenger_id="user1", status=TripStatus.ACTIVE)
+    mock_db = AsyncMock()
+    mock_db.execute = AsyncMock(return_value=MagicMock(scalars=lambda: MagicMock(first=lambda: trip)))
+    mock_ws.receive_text = AsyncMock(side_effect=WebSocketDisconnect)
+
+    with patch("services.tracking.connection_manager.manager.add_viewer") as mock_add:
+        await view_websocket(websocket=mock_ws, trip_id="trip1", share_token=share_token, db=mock_db)
+
+    mock_add.assert_called_once_with("trip1", mock_ws)
+    mock_ws.accept.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_view_websocket_invalid_token():
+    mock_ws = AsyncMock()
+    share_token = "invalid"
+    with patch("services.tracking.routers.ws.decode_access_token", return_value={"scope": "nope", "trip_id": "trip1"}):
+        await view_websocket(websocket=mock_ws, trip_id="trip1", share_token=share_token, db=AsyncMock())
+
+    mock_ws.close.assert_called_once_with(code=4001, reason="Invalid share token")

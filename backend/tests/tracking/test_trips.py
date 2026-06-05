@@ -101,3 +101,20 @@ async def test_complete_trip_twice(client):
     resp = await client.post(f"/trips/{trip_id}/complete", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Trip not active"
+
+def create_token(user_id="11111111-1111-1111-1111-111111111111"):
+    from services.auth.auth_utils import create_access_token
+    return create_access_token({"sub": user_id})
+
+
+@pytest.mark.asyncio
+async def test_share_trip(client):
+    token = create_token()
+    resp = await client.post("/trips/start", headers={"Authorization": f"Bearer {token}"})
+    trip_id = resp.json()["id"]
+
+    resp = await client.post(f"/trips/{trip_id}/share", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "share_token" in data
+    assert data["expires_in"] == 3600

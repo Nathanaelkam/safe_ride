@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import map CSS */
+@import 'leaflet/dist/leaflet.css';
+@import 'mapbox-gl/dist/mapbox-gl.css';
+
+:root {
+  /* Dark theme (default) */
+  --ink: 14 12 10;
+  --ink-700: 26 23 20;
+  --cream: 245 239 230;
+  --terracotta: 226 114 91;
+  --sage: 107 142 107;
+  --ochre: 212 165 116;
+  --shadow-terracotta: 0 20px 60px -20px rgb(226 114 91 / 0.55);
+  
+  /* Theme variables */
+  --bg-primary: var(--ink);
+  --bg-secondary: var(--ink-700);
+  --text-primary: var(--cream);
+  --text-secondary: var(--cream);
+  --border: var(--cream);
+  --accent: var(--terracotta);
+  --accent-shadow: var(--shadow-terracotta);
+}
+
+.light {
+  /* Light theme overrides */
+  --bg-primary: 248 246 243;
+  --bg-secondary: 255 255 255;
+  --text-primary: 26 23 20;
+  --text-secondary: 64 61 58;
+  --border: 26 23 20;
+  --accent: 226 114 91;
+  --accent-shadow: 0 20px 60px -20px rgb(226 114 91 / 0.25);
+  
+  /* Light mode specific colors */
+  --cream-light: 26 23 20;
+  --ink-light: 248 246 243;
+}
+
+html, body {
+  background-color: rgb(var(--bg-primary));
+  color: rgb(var(--text-primary));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Grain overlay ---------- */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+
+/* ---------- Editorial primitives ---------- */
+.eyebrow {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: rgb(var(--terracotta));
+}
+
+.numeral {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 0;
+  font-feature-settings: "ss01", "lnum";
+  letter-spacing: -0.04em;
+}
+
+.hairline {
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgb(var(--border) / 0.18), transparent);
+}
+
+.hairline-v {
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, rgb(var(--border) / 0.18), transparent);
+}
+
+/* ---------- Buttons ---------- */
+.btn-primary {
+  background: rgb(var(--accent));
+  color: white;
+  border-radius: 9999px;
+  padding: 0.85rem 1.6rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: transform 200ms, box-shadow 200ms;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.06) inset;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: var(--accent-shadow); }
+.btn-primary:active { transform: translateY(1px); }
+
+.btn-ghost {
+  border: 1px solid rgb(var(--border) / 0.18);
+  color: rgb(var(--text-primary));
+  background: transparent;
+  border-radius: 9999px;
+  padding: 0.85rem 1.6rem;
+  transition: background 200ms, border-color 200ms;
+}
+.btn-ghost:hover { background: rgb(var(--text-primary) / 0.06); border-color: rgb(var(--border) / 0.4); }
+
+/* ---------- Pulse ring (SOS button signature element) ---------- */
+.pulse-stack > span {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgb(var(--terracotta));
+}
+
+/* ---------- Form input ---------- */
+.input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgb(var(--border) / 0.22);
+  color: rgb(var(--text-primary));
+  padding: 0.85rem 0;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 200ms;
+  font-family: var(--font-sans);
+}
+.input:focus { border-color: rgb(var(--accent)); }
+.input::placeholder { color: rgb(var(--text-primary) / 0.4); }
+
+/* ---------- Leaflet override ---------- */
+.leaflet-container {
+  background: rgb(var(--bg-secondary)) !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* ---------- Scrollbar polish ---------- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(var(--text-primary) / 0.1); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--text-primary) / 0.2); }

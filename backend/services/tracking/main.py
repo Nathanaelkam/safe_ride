@@ -6,7 +6,7 @@ from .database import engine, get_db
 from .models import Base
 from .routers import trips, ws
 from .metrics import PrometheusMiddleware, metrics_endpoint
-
+from .routers import share
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,6 +25,7 @@ app.add_route("/metrics", metrics_endpoint)
 
 app.include_router(trips.router)
 app.include_router(ws.router)
+app.include_router(share.router)
 
 
 @app.get("/health")

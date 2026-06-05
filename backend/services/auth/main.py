@@ -8,6 +8,7 @@ from .routers import register, login, contacts, refresh
 from .metrics import PrometheusMiddleware, metrics_endpoint
 from .routers import internal
 from .routers import otp
+from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,6 +21,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Seva Auth Service", version="1.0.0", lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:8080"],        
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.add_middleware(PrometheusMiddleware)
 app.add_route("/metrics", metrics_endpoint)
 

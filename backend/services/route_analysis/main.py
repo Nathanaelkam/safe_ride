@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse 
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 import redis.asyncio as aioredis
+from fastapi.middleware.cors import CORSMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("route_analysis.main")
@@ -52,6 +53,13 @@ async def lifespan(app: FastAPI): # pragma: no cover
             pass # pragma: no cover
 
 app = FastAPI(title="Seva Route Analysis Service", version="1.0.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:8080"],        
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/health")
 async def health():

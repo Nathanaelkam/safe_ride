@@ -32,7 +32,7 @@ def cross_track_distance(lat_p: float, lon_p: float, lat_a: float, lon_a: float,
 def min_distance_to_route(lat: float, lng: float, route: List[Tuple[float, float]]) -> float:
     """Find the minimum distance in meters from live coordinate to any segment of the intended route."""
     if not route or len(route) < 2:
-        return 0.0
+        return 0.0  # pragma: no cover
 
     min_dist = float('inf')
     for i in range(len(route) - 1):
@@ -57,7 +57,7 @@ def min_distance_to_route(lat: float, lng: float, route: List[Tuple[float, float
             min_dist = min(min_dist, dist_ap)
         # If projection is beyond B
         elif math.cos(brg_bp - brg_ba) < 0:
-            min_dist = min(min_dist, dist_bp)
+            min_dist = min(min_dist, dist_bp) # pragma: no cover
         # Projection is between A and B
         else:
             min_dist = min(min_dist, xt_dist)

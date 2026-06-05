@@ -3,8 +3,9 @@ pipeline {
 
     environment {
         PYTHON = 'python3'
+        PYTHONPATH = '.'
         AUTH_IMAGE = 'seva-auth'
-        PYTHONPATH = '.'            // <-- Enables Python to import services/ from backend/
+        TRACKING_IMAGE = 'seva-tracking'
     }
 
     stages {
@@ -17,7 +18,26 @@ pipeline {
         stage('Setup & Test') {
             steps {
                 dir('backend') {
-                    // ---- Virtual environment & dependencies ----
+                    // ---- Start shared test database ----
+                    sh '''
+                        docker rm -f test-db test-redis 2>/dev/null || true
+                        docker run -d --name test-db \
+                            -e POSTGRES_USER=test \
+                            -e POSTGRES_PASSWORD=test \
+                            -p 5433:5432 \
+                            postgres:15-alpine
+                        sleep 5
+                        docker exec test-db psql -U test -c "CREATE DATABASE test_auth_db;" || echo "Already exists"
+                        docker exec test-db psql -U test -c "CREATE DATABASE test_tracking_db;" || echo "Already exists"
+                    '''
+
+                    // ---- Start test Redis ----
+                    sh '''
+                        docker run -d --name test-redis -p 6380:6379 redis:7-alpine
+                        sleep 3
+                    '''
+
+                    // ---- Install Python dependencies ----
                     sh '''
                         $PYTHON -m venv venv
                         . venv/bin/activate
@@ -25,70 +45,63 @@ pipeline {
                         pip install -r requirements.txt
                     '''
 
-                    // ---- Start test database ----
-                    sh '''
-                        docker run -d --name test-auth-db \
-                            -e POSTGRES_USER=test \
-                            -e POSTGRES_PASSWORD=test \
-                            -e POSTGRES_DB=test_auth_db \
-                            -p 5433:5432 \
-                            postgres:15-alpine
-                        sleep 5
-                    '''
+                    // ---- Discover services and test each ----
+                    script {
+                        def testDirs = sh(
+                            script: "find tests -mindepth 1 -maxdepth 1 -type d -not -name '__pycache__'",
+                            returnStdout: true
+                        ).trim().split('\n')
 
-                    // ---- Run tests with coverage ----
-                    sh '''
-                        . venv/bin/activate
-                        pytest \
-                            --cov=services/auth \
-                            --cov-report=term-missing \
-                            --cov-report=xml:coverage.xml \
-                            --cov-fail-under=80 \
-                            tests/
-                    '''
+                        def failedServices = []
+                        testDirs.each { dir ->
+                            def service = dir.replace('tests/', '')
+                            if (service.isEmpty()) {
+                                return
+                            }
+                            echo "Testing service: ${service}"
+                            try {
+                                sh """
+                                    . venv/bin/activate
+                                    pytest ${dir} \
+                                        --cov=services/${service} \
+                                        --cov-report=term-missing \
+                                        --cov-report=xml:coverage_${service}.xml \
+                                        --cov-fail-under=80
+                                """
+                            } catch (err) {
+                                echo "Tests or coverage failed for service: ${service}"
+                                failedServices.add(service)
+                            }
+                        }
+
+                        if (!failedServices.isEmpty()) {
+                            error("Failing services: ${failedServices.join(', ')}")
+                        }
+                    }
                 }
             }
             post {
                 always {
-                    sh 'docker stop test-auth-db && docker rm test-auth-db || true'
+                    sh 'docker rm -f test-db test-redis 2>/dev/null || true'
                 }
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build Docker Images') {
             steps {
                 dir('backend') {
                     script {
                         def commitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                        sh """
-                            docker build -f Dockerfile.auth -t ${AUTH_IMAGE}:${commitHash} .
-                        """
+                        sh "docker build -f Dockerfile.auth -t ${AUTH_IMAGE}:${commitHash} ."
+                        sh "docker build -f Dockerfile.tracking -t ${TRACKING_IMAGE}:${commitHash} ."
+                        // Emergency service (when ready):
+                        // sh "docker build -f Dockerfile.emergency -t seva-emergency:${commitHash} ."
                     }
                 }
             }
         }
 
-        stage('Push to Registry (Optional)') {
-            when { branch 'main' }
-            steps {
-                script {
-                    def commitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    // Uncomment when ready
-                    // dir('backend') {
-                    //     sh "docker tag ${AUTH_IMAGE}:${commitHash} yourregistry/${AUTH_IMAGE}:${commitHash}"
-                    //     sh "docker push yourregistry/${AUTH_IMAGE}:${commitHash}"
-                    // }
-                    echo "Skipping push – configure your registry credentials"
-                }
-            }
-        }
-
-        stage('Deploy to Test Environment (Future)') {
-            when { branch 'main' }
-            steps {
-                echo 'This stage will later apply Kubernetes manifests via kubectl or Ansible'
-            }
-        }
+        // … optional push / deploy stages …
     }
 
     post {

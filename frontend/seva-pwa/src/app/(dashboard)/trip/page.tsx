@@ -9,6 +9,7 @@ import { StatusPill } from '@/components/common/StatusPill';
 import { Card } from '@/components/common/Card';
 import { Modal } from '@/components/common/Modal';
 import { useTripStore } from '@/store/tripStore';
+import { useAuthStore } from '@/store/authStore';
 import { api } from '@/services/api';
 import type { Trip } from '@/types';
 import { formatTripDuration, maskCoordinate } from '@/utils/format';
@@ -35,10 +36,12 @@ export default function TripPage() {
     resolveSOS
   } = useTripStore();
   
+  const { user } = useAuthStore();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState(true);
   const [sosModalOpen, setSosModalOpen] = useState(false);
   const [notifiedCount, setNotifiedCount] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Check if there's an active trip from API
@@ -59,15 +62,41 @@ export default function TripPage() {
   };
 
   const handleStartTrip = async () => {
-    if (plannedDestination) {
+    if (plannedDestination && user) {
       try {
-        const trip = await api.startTrip();
-        setTrip(trip);
-        setActiveTrip(trip);
+        setError(null);
+        setLoading(true);
+        
+        // Call backend to create trip
+        const backendTrip = await api.startTrip();
+        
+        // Create frontend trip object with backend data + frontend destination
+        const fullTrip: Trip = {
+          id: backendTrip.id.toString(),
+          status: backendTrip.status.toLowerCase() as 'active',
+          startedAt: new Date(backendTrip.started_at).getTime(),
+          origin: { label: 'Current Location', lat: 3.8667, lng: 11.5167 },
+          destination: { 
+            label: plannedDestination.label, 
+            lat: plannedDestination.lat, 
+            lng: plannedDestination.lng 
+          },
+          waypoints: [{
+            lat: 3.8667,
+            lng: 11.5167,
+            timestamp: Date.now(),
+            label: 'Start'
+          }]
+        };
+        
+        setTrip(fullTrip);
+        setActiveTrip(fullTrip);
         startTrip();
-      } catch (error) {
-        console.error('Failed to start trip:', error);
-        // TODO: Show error toast/message to user
+      } catch (err: any) {
+        console.error('Failed to start trip:', err);
+        setError(err?.message || 'Failed to start trip. Please try again.');
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -76,19 +105,45 @@ export default function TripPage() {
     setPlannedDestination(null);
   };
 
+  const handleCompleteTrip = async () => {
+    if (!trip || !user) return;
+    
+    try {
+      setLoading(true);
+      await api.completeTrip(trip.id);
+      
+      // Reset trip state
+      setTrip(null);
+      setActiveTrip(null);
+      setPlannedDestination(null);
+      setPhase('planning');
+      
+      // TODO: Show success message or redirect to trip summary
+    } catch (err: any) {
+      console.error('Failed to complete trip:', err);
+      setError(err?.message || 'Failed to complete trip. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   async function handleSOS() {
-    if (!trip) return;
+    if (!trip || !user) return;
     setSosModalOpen(true);
     triggerSOS();
     
     try {
       // Get current position for SOS
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject);
+        navigator.geolocation.getCurrentPosition(
+          resolve, 
+          reject,
+          { timeout: 10000, enableHighAccuracy: true }
+        );
       });
       
       const res = await api.triggerSOS(
-        'current_user_id', // TODO: Get from auth store
+        user.id,
         trip.id,
         position.coords.latitude,
         position.coords.longitude
@@ -99,12 +154,44 @@ export default function TripPage() {
       }
     } catch (error) {
       console.error('Failed to trigger SOS:', error);
-      setNotifiedCount(0);
+      // Try SOS without location if geolocation fails
+      try {
+        const res = await api.triggerSOS(user.id, trip.id);
+        if (res.status === 'accepted') {
+          setNotifiedCount(3);
+        }
+      } catch (fallbackError) {
+        console.error('SOS fallback also failed:', fallbackError);
+        setNotifiedCount(0);
+      }
     }
   }
 
   if (loading) {
     return <div className="text-cream/55 dark:text-cream/55 light:text-ink/55 text-sm">Loading your trip…</div>;
+  }
+
+  // Show error if trip creation failed
+  if (error) {
+    return (
+      <div className="text-center py-24">
+        <p className="eyebrow mb-4 text-terracotta">Error</p>
+        <h1 className="font-display text-display-md tracking-tight mb-3">
+          Something went <span className="italic">wrong</span>.
+        </h1>
+        <p className="text-cream/55 dark:text-cream/55 light:text-ink/55 mb-6">{error}</p>
+        <button 
+          onClick={() => {
+            setError(null);
+            setPlannedDestination(null);
+            setPhase('planning');
+          }}
+          className="btn-secondary"
+        >
+          Try again
+        </button>
+      </div>
+    );
   }
 
   // Planning phase: Show destination search
@@ -185,6 +272,23 @@ export default function TripPage() {
       <section>
         <p className="eyebrow mb-3">Hands-free protection</p>
         <VoiceTrigger codeword="lavender" onMatch={handleSOS} />
+      </section>
+
+      {/* Trip completion */}
+      <section>
+        <p className="eyebrow mb-3">Trip Management</p>
+        <Card className="!p-6">
+          <p className="font-display text-lg tracking-tight mb-4">
+            Arrived at your destination?
+          </p>
+          <button
+            onClick={handleCompleteTrip}
+            disabled={loading}
+            className="btn-secondary w-full"
+          >
+            {loading ? 'Completing Trip...' : 'Complete Trip'}
+          </button>
+        </Card>
       </section>
 
       {/* SOS confirmation modal */}

@@ -1,4 +1,4 @@
-import type { Trip, Driver, User } from '@/types';
+import type { Trip, Driver, User, BackendTripResponse } from '@/types';
 
 const AUTH_BASE = process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'http://localhost:8001';
 const TRACKING_BASE = process.env.NEXT_PUBLIC_TRACKING_SERVICE_URL || 'http://localhost:8002';
@@ -50,11 +50,10 @@ class ApiService {
 
   async fetchActiveTrip(): Promise<Trip | null> {
     try {
-      const response = await fetch(`${TRACKING_BASE}/trips/active`, {
-        headers: this.getHeaders(),
-      });
-      if (response.status === 404) return null;
-      return this.handleResponse(response);
+      // Backend doesn't have this endpoint yet, return null for now
+      // TODO: Implement /trips/active endpoint in backend or fetch all trips and filter
+      console.warn('fetchActiveTrip: Backend endpoint not implemented yet');
+      return null;
     } catch (error) {
       console.warn('Failed to fetch active trip:', error);
       return null;
@@ -63,17 +62,17 @@ class ApiService {
 
   async fetchHistory(): Promise<Trip[]> {
     try {
-      const response = await fetch(`${TRACKING_BASE}/trips/history`, {
-        headers: this.getHeaders(),
-      });
-      return this.handleResponse(response);
+      // Backend doesn't have this endpoint yet, return empty array for now
+      // TODO: Implement /trips/history endpoint in backend
+      console.warn('fetchHistory: Backend endpoint not implemented yet');
+      return [];
     } catch (error) {
       console.warn('Failed to fetch trip history:', error);
       return [];
     }
   }
 
-  async startTrip(): Promise<Trip> {
+  async startTrip(): Promise<BackendTripResponse> {
     const response = await fetch(`${TRACKING_BASE}/trips/start`, {
       method: 'POST',
       headers: this.getHeaders(),
@@ -81,7 +80,7 @@ class ApiService {
     return this.handleResponse(response);
   }
 
-  async completeTrip(tripId: string): Promise<Trip> {
+  async completeTrip(tripId: string): Promise<BackendTripResponse> {
     const response = await fetch(`${TRACKING_BASE}/trips/${tripId}/complete`, {
       method: 'POST',
       headers: this.getHeaders(),

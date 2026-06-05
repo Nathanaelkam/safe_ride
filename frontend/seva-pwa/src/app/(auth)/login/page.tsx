@@ -18,12 +18,33 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace('/');
+      router.replace('/trip');
     }
   }, [isAuthenticated, router]);
 
+  // Allow access to login page for testing - remove in production
   if (isAuthenticated) {
-    return null;
+    return (
+      <div className="animate-reveal-up">
+        <p className="eyebrow mb-4">Already signed in</p>
+        <h1 className="font-display text-display-md tracking-tight mb-3">
+          You're already <span className="italic">signed in</span>!
+        </h1>
+        <p className="text-cream/55 dark:text-cream/55 light:text-ink/55 mb-10">
+          You can continue to your dashboard or sign out to test login.
+        </p>
+        <button 
+          onClick={() => {
+            const { logout } = useAuthStore.getState();
+            logout();
+            window.location.reload();
+          }}
+          className="btn-secondary w-full"
+        >
+          Sign Out (for testing)
+        </button>
+      </div>
+    );
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -32,7 +53,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await login(phoneNumber, password);
-      router.push('/');
+      router.push('/trip');
     } catch (err: any) {
       setError(err?.message || 'Could not sign you in. Check your details and try again.');
       console.error('Login error:', err);

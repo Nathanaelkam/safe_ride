@@ -28,7 +28,7 @@ export default function RegisterPage() {
         phone_number: phoneNumber,
         password: password
       });
-      router.push('/');
+      router.push('/trip');
     } catch (err: any) {
       setError(err?.message || 'Registration failed. Please try again.');
       console.error('Registration error:', err);

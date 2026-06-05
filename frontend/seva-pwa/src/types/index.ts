@@ -48,3 +48,12 @@ export interface User {
   voiceCodeword?: string;
   joinedAt: number;
 }
+
+// Backend trip response structure
+export interface BackendTripResponse {
+  id: string;
+  passenger_id: string;
+  status: 'ACTIVE' | 'COMPLETED' | 'SOS_TRACKED';
+  started_at: string;
+  completed_at?: string;
+}

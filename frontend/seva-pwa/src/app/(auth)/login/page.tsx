@@ -10,33 +10,32 @@ import { useAuthStore } from '@/store/authStore';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setUser, isAuthenticated } = useAuthStore();
-  const [email, setEmail] = useState('');
+  const { login, isAuthenticated } = useAuthStore();
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Temporarily disabled to allow access to login page
-  // useEffect(() => {
-  //   if (isAuthenticated) {
-  //     router.replace('/');
-  //   }
-  // }, [isAuthenticated, router]);
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace('/');
+    }
+  }, [isAuthenticated, router]);
 
-  // if (isAuthenticated) {
-  //   return null;
-  // }
+  if (isAuthenticated) {
+    return null;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      const user = await api.login(email, password);
-      setUser(user);
-      router.push('/trip');
-    } catch (error) {
-      setError('Could not sign you in. Check your details and try again.');
+      await login(phoneNumber, password);
+      router.push('/');
+    } catch (err: any) {
+      setError(err?.message || 'Could not sign you in. Check your details and try again.');
+      console.error('Login error:', err);
     } finally {
       setSubmitting(false);
     }
@@ -54,14 +53,14 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-7">
         <Input
-          label="Email"
-          name="email"
-          type="email"
-          autoComplete="email"
+          label="Phone Number"
+          name="phoneNumber"
+          type="tel"
+          autoComplete="tel"
           required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="amara@example.cm"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+          placeholder="+237 6xx xxx xxx"
         />
         <Input
           label="Password"

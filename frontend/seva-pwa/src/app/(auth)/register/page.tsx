@@ -6,9 +6,11 @@ import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { api } from '@/services/api';
+import { useAuthStore } from '@/store/authStore';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { register } = useAuthStore();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -21,10 +23,15 @@ export default function RegisterPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await api.register({ fullName, email, phone: phoneNumber, password });
+      await register({
+        full_name: fullName,
+        phone_number: phoneNumber,
+        password: password
+      });
       router.push('/');
-    } catch {
-      setError('Something went wrong. Try again.');
+    } catch (err: any) {
+      setError(err?.message || 'Registration failed. Please try again.');
+      console.error('Registration error:', err);
     } finally {
       setSubmitting(false);
     }

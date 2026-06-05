@@ -1,34 +1,80 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import type { EmergencyContact } from '@/types';
+import { api } from '@/services/api';
+import { useAuthStore } from '@/store/authStore';
 
-const STORAGE_KEY = 'seva.contacts.v1';
+export function useEmergencyContacts() {
+  const [contacts, setContacts] = useState<EmergencyContact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuthStore();
 
-export function useEmergencyContacts(initial: EmergencyContact[] = []) {
-  const [contacts, setContacts] = useState<EmergencyContact[]>(initial);
+  const fetchContacts = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const fetchedContacts = await api.fetchEmergencyContacts(user.id);
+      setContacts(fetchedContacts);
+    } catch (err) {
+      console.error('Failed to fetch emergency contacts:', err);
+      setError('Failed to load emergency contacts');
+      // Fallback to user's existing contacts if available
+      if (user.emergencyContacts) {
+        setContacts(user.emergencyContacts);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      try { setContacts(JSON.parse(raw)); } catch {}
+    fetchContacts();
+  }, [fetchContacts]);
+
+  const addContact = useCallback(async (contact: Omit<EmergencyContact, 'id'>) => {
+    if (!user?.id) throw new Error('User not authenticated');
+
+    try {
+      const newContact = await api.addEmergencyContact(user.id, {
+        name: contact.name,
+        phone: contact.phone,
+        relation: contact.relation,
+        is_primary: contact.isPrimary,
+      });
+      
+      setContacts(prev => [...prev, newContact]);
+      return newContact;
+    } catch (err) {
+      console.error('Failed to add emergency contact:', err);
+      throw new Error('Failed to add emergency contact');
     }
-  }, []);
+  }, [user]);
 
-  const persist = useCallback((next: EmergencyContact[]) => {
-    setContacts(next);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  const removeContact = useCallback(async (id: string) => {
+    if (!user?.id) throw new Error('User not authenticated');
+
+    try {
+      // TODO: Implement delete API endpoint on backend
+      // await api.deleteEmergencyContact(id);
+      setContacts(prev => prev.filter(c => c.id !== id));
+    } catch (err) {
+      console.error('Failed to remove emergency contact:', err);
+      throw new Error('Failed to remove emergency contact');
     }
-  }, []);
+  }, [user]);
 
-  const addContact = useCallback((c: Omit<EmergencyContact, 'id'>) => {
-    persist([...contacts, { ...c, id: `c_${Date.now()}` }]);
-  }, [contacts, persist]);
-
-  const removeContact = useCallback((id: string) => {
-    persist(contacts.filter((c) => c.id !== id));
-  }, [contacts, persist]);
-
-  return { contacts, addContact, removeContact };
+  return { 
+    contacts, 
+    addContact, 
+    removeContact, 
+    loading, 
+    error,
+    refetch: fetchContacts 
+  };
 }

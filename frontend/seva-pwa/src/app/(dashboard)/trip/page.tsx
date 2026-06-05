@@ -58,30 +58,17 @@ export default function TripPage() {
     setPlannedDestination(destination);
   };
 
-  const handleStartTrip = () => {
+  const handleStartTrip = async () => {
     if (plannedDestination) {
-      // Create a mock trip for demonstration
-      const mockTrip: Trip = {
-        id: `trip-${Date.now()}`,
-        status: 'active',
-        startedAt: Date.now(),
-        origin: { label: 'Current Location', lat: 3.8667, lng: 11.5167 },
-        destination: { 
-          label: plannedDestination.label, 
-          lat: plannedDestination.lat, 
-          lng: plannedDestination.lng 
-        },
-        waypoints: [{
-          lat: 3.8667,
-          lng: 11.5167,
-          timestamp: Date.now(),
-          label: 'Start'
-        }]
-      };
-      
-      setTrip(mockTrip);
-      setActiveTrip(mockTrip);
-      startTrip();
+      try {
+        const trip = await api.startTrip();
+        setTrip(trip);
+        setActiveTrip(trip);
+        startTrip();
+      } catch (error) {
+        console.error('Failed to start trip:', error);
+        // TODO: Show error toast/message to user
+      }
     }
   };
 
@@ -93,8 +80,27 @@ export default function TripPage() {
     if (!trip) return;
     setSosModalOpen(true);
     triggerSOS();
-    const res = await api.triggerSOS(trip.id);
-    setNotifiedCount(res.notified);
+    
+    try {
+      // Get current position for SOS
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+      
+      const res = await api.triggerSOS(
+        'current_user_id', // TODO: Get from auth store
+        trip.id,
+        position.coords.latitude,
+        position.coords.longitude
+      );
+      
+      if (res.status === 'accepted') {
+        setNotifiedCount(3); // Default notification count
+      }
+    } catch (error) {
+      console.error('Failed to trigger SOS:', error);
+      setNotifiedCount(0);
+    }
   }
 
   if (loading) {

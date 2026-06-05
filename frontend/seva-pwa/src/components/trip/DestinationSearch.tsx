@@ -19,8 +19,8 @@ interface DestinationSearchProps {
   className?: string;
 }
 
-// Mock destinations with specific quarters and neighborhoods in Yaoundé
-const mockDestinations: Destination[] = [
+// Popular destinations as fallback when no search query
+const popularDestinations: Destination[] = [
   {
     id: '1',
     label: 'Marché Central',
@@ -49,50 +49,65 @@ const mockDestinations: Destination[] = [
     lat: 3.8644,
     lng: 11.5196,
   },
-  {
-    id: '5',
-    label: 'Carrefour Warda',
-    address: 'Bastos, Yaoundé, Cameroun',
-    lat: 3.8867,
-    lng: 11.5226,
-  },
-  {
-    id: '6',
-    label: 'Mvog-Ada',
-    address: 'Mvog-Ada, Yaoundé, Cameroun',
-    lat: 3.8534,
-    lng: 11.5128,
-  },
-  {
-    id: '7',
-    label: 'Carrefour Nlongkak',
-    address: 'Nlongkak, Yaoundé, Cameroun',
-    lat: 3.8901,
-    lng: 11.5311,
-  },
-  {
-    id: '8',
-    label: 'Marché Mokolo',
-    address: 'Mokolo, Yaoundé, Cameroun',
-    lat: 3.8756,
-    lng: 11.5089,
-  },
 ];
+
+// TODO: Replace with actual Mapbox API key
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || 'your-mapbox-token';
+
+async function searchPlaces(query: string): Promise<Destination[]> {
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'your-mapbox-token') {
+    // Fallback to filtering popular destinations if no API key
+    return popularDestinations.filter(dest =>
+      dest.label.toLowerCase().includes(query.toLowerCase()) ||
+      dest.address.toLowerCase().includes(query.toLowerCase())
+    );
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&country=CM&proximity=11.5167,3.8667&limit=8`
+    );
+    
+    if (!response.ok) {
+      throw new Error('Geocoding request failed');
+    }
+
+    const data = await response.json();
+    
+    return data.features.map((feature: any) => ({
+      id: feature.id,
+      label: feature.text,
+      address: feature.place_name,
+      lat: feature.center[1],
+      lng: feature.center[0],
+    }));
+  } catch (error) {
+    console.error('Geocoding failed:', error);
+    // Fallback to filtering popular destinations
+    return popularDestinations.filter(dest =>
+      dest.label.toLowerCase().includes(query.toLowerCase()) ||
+      dest.address.toLowerCase().includes(query.toLowerCase())
+    );
+  }
+}
 
 export function DestinationSearch({ onDestinationSelect, className }: DestinationSearchProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Destination[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const handleSearch = (query: string) => {
+  const handleSearch = async (query: string) => {
     setSearchQuery(query);
-    if (query.trim().length > 0) {
-      const filtered = mockDestinations.filter(dest =>
-        dest.label.toLowerCase().includes(query.toLowerCase()) ||
-        dest.address.toLowerCase().includes(query.toLowerCase())
-      );
-      setSuggestions(filtered);
-      setShowSuggestions(true);
+    if (query.trim().length > 2) {
+      try {
+        const results = await searchPlaces(query);
+        setSuggestions(results);
+        setShowSuggestions(true);
+      } catch (error) {
+        console.error('Search failed:', error);
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -197,7 +212,7 @@ export function DestinationSearch({ onDestinationSelect, className }: Destinatio
       <div className="space-y-3">
         <p className="eyebrow">Quick destinations</p>
         <div className="grid grid-cols-2 gap-3">
-          {mockDestinations.slice(0, 4).map((destination) => (
+          {popularDestinations.slice(0, 4).map((destination) => (
             <button
               key={destination.id}
               onClick={() => handleDestinationClick(destination)}

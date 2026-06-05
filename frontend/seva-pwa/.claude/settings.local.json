@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(C:\\Users\\840 G5\\Desktop\\Software-Architecture\\safe_ride\\backend\\services\\tracking/**)",
+      "Read(C:\\Users\\840 G5\\Desktop\\Software-Architecture\\safe_ride\\backend\\services\\emergency\\app/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

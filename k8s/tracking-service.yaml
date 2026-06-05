@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracking
+  namespace: seva
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracking
+  template:
+    metadata:
+      labels:
+        app: tracking
+    spec:
+      containers:
+        - name: tracking
+          image: nathanaelkam/seva-tracking:latest   # ← replace with your real image
+          ports:
+            - containerPort: 8000
+          env:
+            - name: TRACKING_DATABASE_URL
+              value: "postgresql+asyncpg://seva:seva@tracking-postgres:5432/tracking_db"
+            - name: TRACKING_REDIS_URL
+              value: "redis://emergency-redis:6379/0"
+            - name: TRACKING_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: seva-secrets
+                  key: jwt-secret
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracking-service
+  namespace: seva
+spec:
+  selector:
+    app: tracking
+  ports:
+    - port: 8000
+      targetPort: 8000

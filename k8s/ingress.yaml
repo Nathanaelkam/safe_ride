@@ -1,0 +1,41 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: seva-ingress
+  namespace: seva
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: seva.yourdomain.cm   # ← replace with your actual domain or VPS IP
+      http:
+        paths:
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 8000
+          - path: /trips
+            pathType: Prefix
+            backend:
+              service:
+                name: tracking-service
+                port:
+                  number: 8000
+          - path: /emergency
+            pathType: Prefix
+            backend:
+              service:
+                name: emergency-service
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pwa-service         # PWA will be added later
+                port:
+                  number: 80

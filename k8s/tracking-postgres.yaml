@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tracking-postgres-pvc
+  namespace: seva
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracking-postgres
+  namespace: seva
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracking-postgres
+  template:
+    metadata:
+      labels:
+        app: tracking-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          env:
+            - name: POSTGRES_USER
+              value: "seva"
+            - name: POSTGRES_PASSWORD
+              value: "seva"
+            - name: POSTGRES_DB
+              value: "tracking_db"
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: tracking-postgres-data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "seva", "-d", "tracking_db"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: tracking-postgres-data
+          persistentVolumeClaim:
+            claimName: tracking-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracking-postgres
+  namespace: seva
+spec:
+  selector:
+    app: tracking-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

@@ -25,6 +25,7 @@ Event-bus contract:
 import logging
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .redis_client import lifespan
 from .routers import health, emergency
@@ -40,6 +41,15 @@ app = FastAPI(
         "consumption by the Notification Service."
     ),
     lifespan=lifespan,
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(health.router)

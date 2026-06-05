@@ -21,7 +21,7 @@ def event_loop():
 async def test_engine():
     engine = create_async_engine(TEST_DATABASE_URL)
     # Retry until the database is ready (maximum 30 attempts)
-    for attempt in range(30):
+    for attempt in range(60):
         try:
             async with engine.begin() as conn:
                 await conn.run_sync(lambda c: None)   # just test connectivity

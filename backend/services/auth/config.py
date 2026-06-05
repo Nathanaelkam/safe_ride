@@ -9,6 +9,9 @@ class AuthSettings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 30
+    email_enabled: bool = False
+    email_sender: str = ""
+    email_password: str = ""
 
 
 # Create the global settings instance that database.py and main.py import

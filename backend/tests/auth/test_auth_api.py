@@ -10,6 +10,8 @@ from services.auth.database import get_db
 from services.auth.models import Base, UserContact, HandshakeStatus, VerificationCode
 from services.auth.auth_utils import create_access_token
 from datetime import datetime, timezone, timedelta
+import logging
+logger = logging.getLogger(__name__)
 
 TEST_DATABASE_URL = "postgresql+asyncpg://test:test@localhost:5433/test_auth_db"
 
@@ -23,6 +25,7 @@ async def test_engine():
                 await conn.run_sync(lambda c: None)
                 break
         except Exception:
+            logger.warning(f"DB not ready: {e}")
             await asyncio.sleep(1)
     else:
         raise RuntimeError("Test database not reachable")

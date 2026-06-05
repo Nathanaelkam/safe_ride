@@ -20,7 +20,9 @@ pipeline {
                 dir('backend') {
                     // ---- Start shared test database ----
                     sh '''
-                        docker rm -f test-db test-redis 2>/dev/null || true
+                        docker rm -f test-db 2>/dev/null || true
+                        docker rm -f test-redis 2>/dev/null || true
+                        sleep 1
                         docker run -d --name test-db \
                             -e POSTGRES_USER=test \
                             -e POSTGRES_PASSWORD=test \
@@ -33,6 +35,7 @@ pipeline {
 
                     // ---- Start test Redis ----
                     sh '''
+                        docker rm -f test-redis 2>/dev/null || true
                         docker run -d --name test-redis -p 6380:6379 redis:7-alpine
                         sleep 3
                     '''

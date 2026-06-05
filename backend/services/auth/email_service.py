@@ -3,6 +3,7 @@ from email.mime.text import MIMEText
 from .config import settings
 
 def send_otp_email(to_email: str, code: str) -> None:
+     
     if not settings.email_enabled:
         import logging
         logging.getLogger("auth.email").info(f"OTP for {to_email}: {code}")

@@ -18,8 +18,8 @@ TEST_DATABASE_URL = "postgresql+asyncpg://test:test@localhost:5433/test_auth_db"
 @pytest_asyncio.fixture(scope="function")
 async def test_engine():
     engine = create_async_engine(TEST_DATABASE_URL)
-    # Retry until the database is ready (maximum 10 attempts)
-    for attempt in range(10):
+    # Retry until the database is ready (maximum 30 attempts)
+    for attempt in range(30):
         try:
             async with engine.begin() as conn:
                 await conn.run_sync(lambda c: None)   # just test connectivity

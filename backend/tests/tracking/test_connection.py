@@ -2,6 +2,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from services.tracking.connection_manager import ConnectionManager
 from fastapi import WebSocket
+from unittest.mock import AsyncMock
+from services.tracking.connection_manager import ConnectionManager
 
 @pytest.mark.asyncio
 async def test_connect_fail_trip_not_found():
@@ -48,3 +50,19 @@ async def test_get_db_dependency():
     gen = get_db()
     session = await gen.__anext__()
     assert session is not None
+
+@pytest.mark.asyncio
+async def test_add_viewer_and_broadcast():
+    mgr = ConnectionManager()
+    ws = AsyncMock()
+    mgr.add_viewer("trip1", ws)
+    await mgr.broadcast_to_viewers("trip1", {"lat": 1.0, "lon": 2.0})
+    ws.send_json.assert_called_once_with({"lat": 1.0, "lon": 2.0})
+
+@pytest.mark.asyncio
+async def test_remove_viewer():
+    mgr = ConnectionManager()
+    ws = AsyncMock()
+    mgr.add_viewer("trip1", ws)
+    mgr.remove_viewer("trip1", ws)
+    assert len(mgr.viewers["trip1"]) == 0

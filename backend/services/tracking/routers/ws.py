@@ -1,11 +1,13 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from ..database import get_db
 from ..connection_manager import manager
 from ..auth_utils import decode_access_token
 from ..schemas import LocationMessage
 from ..redis_client import publish_location
 from ..metrics import inc_websocket_message
+from ..models import Trip, TripStatus
 import json
 
 router = APIRouter()
@@ -59,5 +61,41 @@ async def websocket_endpoint(
             # Acknowledge (optional)
             await websocket.send_json({"status": "ok"})
 
+            await manager.broadcast_to_viewers(trip_id, {
+               "latitude": location.latitude,
+               "longitude": location.longitude,
+               "timestamp": location.timestamp.isoformat(),
+            })
+
     except WebSocketDisconnect:
         manager.disconnect(trip_id)
+
+@router.websocket("/ws/view/{trip_id}")
+async def view_websocket(
+    websocket: WebSocket,
+    trip_id: str,
+    share_token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    # Decode the share token
+    payload = decode_access_token(share_token)
+    if payload.get("scope") != "view" or payload.get("trip_id") != trip_id:
+        await websocket.close(code=4001, reason="Invalid share token")
+        return
+
+    # Verify the trip exists and is active
+    result = await db.execute(select(Trip).where(Trip.id == trip_id))
+    trip = result.scalars().first()
+    if not trip or trip.status != TripStatus.ACTIVE:
+        await websocket.close(code=4004, reason="Trip not active")
+        return
+
+    await websocket.accept()
+    manager.add_viewer(trip_id, websocket)
+
+    try:
+        # Keep the connection open – viewers don't send messages
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.remove_viewer(trip_id, websocket)

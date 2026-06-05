@@ -2,7 +2,7 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-
+import asyncio
 from services.tracking.main import app
 from services.tracking.database import get_db
 from services.tracking.models import Base
@@ -14,6 +14,18 @@ TEST_DATABASE_URL = "postgresql+asyncpg://test:test@localhost:5433/test_tracking
 @pytest_asyncio.fixture(scope="function")
 async def test_engine():
     engine = create_async_engine(TEST_DATABASE_URL)
+
+    # Wait until the database is ready (max 30 seconds)
+    for attempt in range(30):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(lambda c: None)
+                break
+        except Exception:
+            await asyncio.sleep(1)
+    else:
+        raise RuntimeError("Test database not reachable")
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -101,3 +113,20 @@ async def test_complete_trip_twice(client):
     resp = await client.post(f"/trips/{trip_id}/complete", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Trip not active"
+
+def create_token(user_id="11111111-1111-1111-1111-111111111111"):
+    from services.auth.auth_utils import create_access_token
+    return create_access_token({"sub": user_id})
+
+
+@pytest.mark.asyncio
+async def test_share_trip(client):
+    token = create_token()
+    resp = await client.post("/trips/start", headers={"Authorization": f"Bearer {token}"})
+    trip_id = resp.json()["id"]
+
+    resp = await client.post(f"/trips/{trip_id}/share", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "share_token" in data
+    assert data["expires_in"] == 3600

@@ -12,6 +12,7 @@ from ..schemas import (
 )
 from ..auth_utils import hash_password, create_access_token, generate_refresh_token, hash_token
 from ..metrics import inc_active_users
+from ..config import settings
 from ..email_service import send_otp_email
 import random
 from datetime import datetime, timezone, timedelta
@@ -98,7 +99,6 @@ async def register_verify(data: RegistrationVerifyRequest, db: AsyncSession = De
     # Generate refresh token
     raw_refresh = generate_refresh_token()
     refresh_hash = hash_token(raw_refresh)
-    from ..config import settings
     expires = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
     
     db.add(RefreshToken(user_id=user.id, token_hash=refresh_hash, expires_at=expires))

@@ -9,7 +9,6 @@ from .routers import login, contacts, refresh
 from .metrics import PrometheusMiddleware, metrics_endpoint
 from .routers import internal
 from .routers import otp
-from fastapi.middleware.cors import CORSMiddleware
 from .routers import register
 
 @asynccontextmanager
@@ -17,6 +16,21 @@ async def lifespan(app: FastAPI):
     # Create tables on startup for development; in production use Alembic migrations
     async with engine.begin() as conn: # pragma: no cover
         await conn.run_sync(Base.metadata.create_all)  # pragma: no cover
+        
+        # Add missing email column if it doesn't exist
+        result = await conn.execute(text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'users' AND column_name = 'email'
+        """))
+        
+        if not result.fetchone():
+            print("Adding email column to users table...")
+            await conn.execute(text("""
+                ALTER TABLE users 
+                ADD COLUMN email VARCHAR(255) UNIQUE
+            """))
+            print("Email column added successfully!")
     yield
     await engine.dispose() # pragma: no cover
 
@@ -26,9 +40,9 @@ app = FastAPI(title="Seva Auth Service", version="1.0.0", lifespan=lifespan)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Frontend origins
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 app.add_middleware(PrometheusMiddleware)

@@ -2,6 +2,7 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTripTracking } from '@/hooks/useTripTracking';
 import type { TripWaypoint } from '@/types';
 
 const MapContainer = dynamic(() => import('react-leaflet').then((m) => m.MapContainer), { ssr: false });
@@ -10,19 +11,34 @@ const Polyline = dynamic(() => import('react-leaflet').then((m) => m.Polyline), 
 const CircleMarker = dynamic(() => import('react-leaflet').then((m) => m.CircleMarker), { ssr: false });
 
 interface TrackingMapProps {
-  waypoints: TripWaypoint[];
-  origin: { lat: number; lng: number };
-  destination: { lat: number; lng: number };
+  waypoints?: TripWaypoint[];
+  origin?: { lat: number; lng: number };
+  destination?: { lat: number; lng: number };
   height?: string;
+  useRealTimeTracking?: boolean;
 }
 
-export function TrackingMap({ waypoints, origin, destination, height = '420px' }: TrackingMapProps) {
+export function TrackingMap({ 
+  waypoints: propWaypoints, 
+  origin: propOrigin, 
+  destination: propDestination, 
+  height = '420px',
+  useRealTimeTracking = false 
+}: TrackingMapProps) {
   const { theme } = useTheme();
+  const tracking = useTripTracking();
   
   useEffect(() => {
     // Import Leaflet CSS dynamically to ensure it's loaded
     import('leaflet/dist/leaflet.css');
   }, []);
+
+  // Use real-time data if enabled and available, otherwise use props
+  const waypoints = useRealTimeTracking ? tracking.waypoints : (propWaypoints || []);
+  const origin = useRealTimeTracking && tracking.currentPosition 
+    ? { lat: tracking.currentPosition.latitude, lng: tracking.currentPosition.longitude }
+    : (propOrigin || { lat: 0, lng: 0 });
+  const destination = propDestination || { lat: 0, lng: 0 };
 
   const center = useMemo<[number, number]>(() => {
     if (waypoints.length > 0) {
@@ -85,9 +101,23 @@ export function TrackingMap({ waypoints, origin, destination, height = '420px' }
       {/* Overlay frame for editorial polish */}
       <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-cream/5 dark:ring-cream/5 light:ring-ink/5 rounded-2xl" />
       <div className="pointer-events-none absolute top-3 left-3 right-3 flex justify-between text-[10px] uppercase tracking-[0.22em] font-mono text-cream/55 dark:text-cream/55 light:text-ink/55">
-        <span>Live route</span>
-        <span>{waypoints.length} ping{waypoints.length === 1 ? '' : 's'}</span>
+        <span>
+          {useRealTimeTracking ? (tracking.isTracking ? 'Live tracking' : 'Tracking offline') : 'Route preview'}
+        </span>
+        <span>
+          {waypoints.length} ping{waypoints.length === 1 ? '' : 's'}
+          {useRealTimeTracking && tracking.isTracking && (
+            <span className="ml-2 inline-block h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
+          )}
+        </span>
       </div>
+      
+      {/* Connection status */}
+      {useRealTimeTracking && (tracking.connectionError || tracking.gpsError) && (
+        <div className="absolute bottom-3 left-3 right-3 bg-red-500/90 text-white text-xs px-3 py-2 rounded-lg">
+          {tracking.connectionError || tracking.gpsError}
+        </div>
+      )}
     </div>
   );
 }

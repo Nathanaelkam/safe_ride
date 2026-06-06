@@ -10,6 +10,7 @@ import { StatusPill } from '@/components/common/StatusPill';
 import { useEmergencyContacts } from '@/hooks/useEmergencyContacts';
 import type { EmergencyContact } from '@/types';
 import { formatPhone } from '@/utils/format';
+import { api } from '@/services/api';
 
 const initialContacts: EmergencyContact[] = [
   { id: 'c1', name: 'Sister Bih', relation: 'Sister', phone: '+237 677 442 199', isPrimary: true },
@@ -19,19 +20,90 @@ const initialContacts: EmergencyContact[] = [
 
 export default function ProfilePage() {
   const { theme, toggleTheme } = useTheme();
-  const { contacts, addContact, removeContact } = useEmergencyContacts(initialContacts);
+  const { contacts, addContact, removeContact, loading, error } = useEmergencyContacts(initialContacts);
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [relation, setRelation] = useState('');
   const [phone, setPhone] = useState('');
   const [codeword, setCodeword] = useState('lavender');
+  const [pendingRequests, setPendingRequests] = useState([]);
 
-  function handleAdd(e: React.FormEvent) {
+  console.log('=== PROFILE PAGE EMERGENCY CONTACTS DEBUG ===');
+  console.log('Contacts:', contacts);
+  console.log('Loading:', loading);
+  console.log('Error:', error);
+
+  // Test handshake functionality
+  const testHandshake = async () => {
+    console.log('=== TESTING HANDSHAKE FUNCTIONALITY ===');
+    try {
+      // Set the token for API calls
+      const token = useAuthStore.getState().token;
+      if (token) {
+        api.setToken(token);
+      }
+      
+      // Get incoming contact requests (people who want to add me)
+      const incoming = await api.getPendingContactRequests();
+      console.log('Incoming contact requests:', incoming);
+      setPendingRequests(incoming);
+      
+      if (incoming.length > 0) {
+        console.log('✅ Found incoming contact requests! You can now accept/reject them.');
+      } else {
+        console.log('📭 No incoming contact requests found.');
+        console.log('💡 To test: Have someone else add your phone number as an emergency contact');
+      }
+    } catch (err) {
+      console.error('Handshake test failed:', err);
+    }
+  };
+
+  // Test function to create and complete a full handshake workflow
+  const testFullWorkflow = async () => {
+    console.log('=== TESTING FULL HANDSHAKE WORKFLOW ===');
+    try {
+      const token = useAuthStore.getState().token;
+      if (token) {
+        api.setToken(token);
+      }
+      
+      console.log('📞 Step 1: Adding a test contact...');
+      // This should create a PENDING contact request
+      await api.addEmergencyContact('test-user-id', {
+        contact_name: 'Test Contact',
+        contact_phone: '+237600000000' // Test phone number
+      });
+      console.log('✅ Contact added with PENDING status');
+      
+      console.log('📋 Step 2: Checking all my contacts...');
+      const allContacts = await api.fetchEmergencyContacts();
+      console.log('All my contacts:', allContacts);
+      
+    } catch (err) {
+      console.error('Full workflow test failed:', err);
+    }
+  };
+
+  async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !phone.trim()) return;
-    addContact({ name: name.trim(), relation: relation.trim() || 'Contact', phone: phone.trim() });
-    setName(''); setRelation(''); setPhone('');
-    setModalOpen(false);
+    
+    try {
+      console.log('Adding emergency contact:', { name: name.trim(), relation: relation.trim() || 'Contact', phone: phone.trim() });
+      await addContact({ 
+        name: name.trim(), 
+        relation: relation.trim() || 'Contact', 
+        phone: phone.trim() 
+      });
+      setName(''); setRelation(''); setPhone('');
+      setModalOpen(false);
+      console.log('Emergency contact added successfully');
+    } catch (err) {
+      console.error('Failed to add emergency contact:', err);
+      // TODO: Show error message to user
+      alert('Failed to add emergency contact. Please try again.');
+    }
   }
 
   return (
@@ -98,15 +170,39 @@ export default function ProfilePage() {
           <h2 className="font-display text-2xl tracking-tight">
             <span className="numeral text-terracotta mr-3">02</span>Emergency contacts
           </h2>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="btn-primary !text-sm inline-flex items-center gap-2"
-          >
-            <Plus size={14} /> Add contact
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={testHandshake}
+              className="btn-secondary !text-sm inline-flex items-center gap-2"
+            >
+              Check Requests
+            </button>
+            <button
+              onClick={testFullWorkflow}
+              className="btn-secondary !text-sm inline-flex items-center gap-2"
+            >
+              Test Workflow
+            </button>
+            <button
+              onClick={() => setModalOpen(true)}
+              className="btn-primary !text-sm inline-flex items-center gap-2"
+            >
+              <Plus size={14} /> Add contact
+            </button>
+          </div>
         </div>
 
-        {contacts.length === 0 ? (
+        {loading ? (
+          <Card className="text-center !py-12">
+            <p className="font-display text-xl tracking-tight mb-2">Loading contacts...</p>
+            <p className="text-cream/55 text-sm">Fetching your emergency contacts from the backend.</p>
+          </Card>
+        ) : error ? (
+          <Card className="text-center !py-12">
+            <p className="font-display text-xl tracking-tight mb-2 text-red-400">Failed to load contacts</p>
+            <p className="text-cream/55 text-sm">{error}</p>
+          </Card>
+        ) : contacts.length === 0 ? (
           <Card className="text-center !py-12">
             <p className="font-display text-xl tracking-tight mb-2">No watchers yet.</p>
             <p className="text-cream/55 text-sm">Add at least one person you'd want to know if something felt off.</p>
@@ -140,6 +236,63 @@ export default function ProfilePage() {
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+
+        {/* Pending Contact Requests */}
+        {pendingRequests.length > 0 && (
+          <div className="mt-8">
+            <h3 className="font-display text-lg tracking-tight mb-4 text-yellow-400">
+              📬 Pending Contact Requests
+            </h3>
+            <div className="space-y-3">
+              {pendingRequests.map((request: any) => (
+                <Card key={request.id} className="!p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-display text-base tracking-tight">
+                        {request.contact_name}
+                      </p>
+                      <p className="text-sm text-cream/55">
+                        wants to add you as an emergency contact
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await api.respondToContactRequest(request.id, 'ACCEPTED');
+                            console.log('Contact request accepted');
+                            // Refresh the pending requests
+                            testHandshake();
+                          } catch (err) {
+                            console.error('Failed to accept request:', err);
+                          }
+                        }}
+                        className="btn-primary !text-xs !px-3 !py-1"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await api.respondToContactRequest(request.id, 'REJECTED');
+                            console.log('Contact request rejected');
+                            // Refresh the pending requests
+                            testHandshake();
+                          } catch (err) {
+                            console.error('Failed to reject request:', err);
+                          }
+                        }}
+                        className="btn-secondary !text-xs !px-3 !py-1"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
       </section>

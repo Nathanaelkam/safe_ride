@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Trip Tracking - Seva</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #2E2825 0%, #1A1A1A 100%);
+            color: #F5EFE6;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(46, 40, 37, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid rgba(245, 239, 230, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #F5EFE6;
+        }
+        
+        .status {
+            font-size: 0.875rem;
+            color: #D4A574;
+            margin-top: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10B981;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .status-dot.offline {
+            background: #EF4444;
+            animation: none;
+        }
+        
+        .map-container {
+            position: fixed;
+            top: 80px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .error {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            max-width: 300px;
+            z-index: 2000;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 2000;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(245, 239, 230, 0.3);
+            border-top: 3px solid #D4A574;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 id="trip-title">Live Trip Tracking</h1>
+        <div class="status">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="status-text">Connecting...</span>
+        </div>
+    </div>
+    
+    <div class="map-container">
+        <div id="map"></div>
+    </div>
+    
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Connecting to live trip...</p>
+    </div>
+    
+    <div id="error" class="error" style="display: none;">
+        <p id="error-message">Failed to connect to trip</p>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        class TripViewer {
+            constructor() {
+                this.map = null;
+                this.ws = null;
+                this.currentMarker = null;
+                this.pathPoints = [];
+                this.pathPolyline = null;
+                this.tripId = null;
+                this.shareToken = null;
+                this.isConnected = false;
+                
+                this.init();
+            }
+            
+            init() {
+                // Parse URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                this.tripId = urlParams.get('trip');
+                this.shareToken = urlParams.get('token');
+                
+                if (!this.tripId || !this.shareToken) {
+                    this.showError('Invalid trip link');
+                    return;
+                }
+                
+                this.initMap();
+                this.connectWebSocket();
+            }
+            
+            initMap() {
+                // Default to a central location (Yaounde, Cameroon)
+                this.map = L.map('map').setView([3.848, 11.502], 13);
+                
+                // Add dark theme tile layer
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors © CartoDB',
+                    maxZoom: 19
+                }).addTo(this.map);
+            }
+            
+            connectWebSocket() {
+                const wsUrl = `ws://localhost:8002/ws/view/${this.tripId}?share_token=${this.shareToken}`;
+                
+                try {
+                    this.ws = new WebSocket(wsUrl);
+                    
+                    this.ws.onopen = () => {
+                        console.log('Connected to live trip');
+                        this.setConnected(true);
+                        this.hideLoading();
+                    };
+                    
+                    this.ws.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            this.handleLocationUpdate(data);
+                        } catch (error) {
+                            console.error('Failed to parse message:', error);
+                        }
+                    };
+                    
+                    this.ws.onclose = () => {
+                        console.log('Disconnected from live trip');
+                        this.setConnected(false);
+                    };
+                    
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.showError('Failed to connect to live trip');
+                        this.hideLoading();
+                    };
+                    
+                } catch (error) {
+                    console.error('Failed to create WebSocket:', error);
+                    this.showError('Failed to connect to live trip');
+                    this.hideLoading();
+                }
+            }
+            
+            handleLocationUpdate(data) {
+                if (!data.latitude || !data.longitude) {
+                    return;
+                }
+                
+                const lat = data.latitude;
+                const lng = data.longitude;
+                const latLng = L.latLng(lat, lng);
+                
+                // Update current position marker
+                if (this.currentMarker) {
+                    this.currentMarker.setLatLng(latLng);
+                } else {
+                    this.currentMarker = L.circleMarker(latLng, {
+                        radius: 8,
+                        color: '#E2725B',
+                        weight: 3,
+                        fillColor: '#E2725B',
+                        fillOpacity: 0.8
+                    }).addTo(this.map);
+                }
+                
+                // Add to path
+                this.pathPoints.push(latLng);
+                
+                // Update path polyline
+                if (this.pathPolyline) {
+                    this.pathPolyline.setLatLngs(this.pathPoints);
+                } else if (this.pathPoints.length >= 2) {
+                    this.pathPolyline = L.polyline(this.pathPoints, {
+                        color: '#E2725B',
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: '5, 10'
+                    }).addTo(this.map);
+                }
+                
+                // Center map on current position
+                this.map.setView(latLng, Math.max(this.map.getZoom(), 15));
+                
+                // Update status
+                this.updateStatus(`Last update: ${new Date().toLocaleTimeString()}`);
+            }
+            
+            setConnected(connected) {
+                this.isConnected = connected;
+                const statusDot = document.getElementById('status-dot');
+                const statusText = document.getElementById('status-text');
+                
+                if (connected) {
+                    statusDot.classList.remove('offline');
+                    statusText.textContent = 'Connected - Receiving live updates';
+                } else {
+                    statusDot.classList.add('offline');
+                    statusText.textContent = 'Disconnected - Trying to reconnect...';
+                    
+                    // Try to reconnect after a delay
+                    setTimeout(() => {
+                        if (!this.isConnected) {
+                            this.connectWebSocket();
+                        }
+                    }, 3000);
+                }
+            }
+            
+            updateStatus(message) {
+                if (this.isConnected) {
+                    document.getElementById('status-text').textContent = message;
+                }
+            }
+            
+            showError(message) {
+                document.getElementById('error-message').textContent = message;
+                document.getElementById('error').style.display = 'block';
+            }
+            
+            hideLoading() {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+        
+        // Initialize viewer when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new TripViewer();
+        });
+    </script>
+</body>
+</html>

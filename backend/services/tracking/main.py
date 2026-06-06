@@ -8,6 +8,7 @@ from .models import Base
 from .routers import trips, ws
 from .metrics import PrometheusMiddleware, metrics_endpoint
 from .routers import share
+from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,7 +24,7 @@ app = FastAPI(title="Seva Tracking Service", version="1.0.0", lifespan=lifespan)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*","http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

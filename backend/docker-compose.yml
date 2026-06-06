@@ -37,6 +37,9 @@ services:
     environment:
       AUTH_DATABASE_URL: postgresql+asyncpg://seva:seva@auth-postgres:5432/auth_db
       AUTH_SECRET_KEY: "super-secret-change-me"
+      AUTH_EMAIL_ENABLED: "true"
+      AUTH_EMAIL_SENDER: "kamnathanael3@gmail.com"
+      AUTH_EMAIL_PASSWORD: "meim uzmz fvxl qsjt"
     ports:
       - "8001:8000"
     depends_on:

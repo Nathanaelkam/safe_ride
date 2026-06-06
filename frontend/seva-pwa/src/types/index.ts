@@ -6,6 +6,14 @@ export interface EmergencyContact {
   isPrimary?: boolean;
 }
 
+// Backend contact structure
+export interface BackendContact {
+  id: string;
+  contact_name: string;
+  contact_phone: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+}
+
 export interface Driver {
   id: string;
   name: string;

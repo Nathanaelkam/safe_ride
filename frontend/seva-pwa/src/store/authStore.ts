@@ -72,9 +72,19 @@ export const useAuthStore = create<AuthState>()(
       setHasHydrated: (state: boolean) => {
         set({ _hasHydrated: state });
         // Set token on API service when rehydrating
-        const { token } = get();
+        const { token, user } = get();
+        console.log('=== AUTH STORE HYDRATION ===');
+        console.log('Hydration state:', state);
+        console.log('Token from storage:', token);
+        console.log('User from storage:', user);
+        console.log('Setting isAuthenticated:', !!(token && user));
+        
         if (token) {
           api.setToken(token);
+          // Fix: Set isAuthenticated based on having both user and token
+          if (user) {
+            set({ isAuthenticated: true });
+          }
         }
       },
     }),

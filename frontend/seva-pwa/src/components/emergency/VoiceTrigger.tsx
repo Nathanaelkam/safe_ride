@@ -6,6 +6,7 @@ import { cn } from '@/utils/cn';
 interface VoiceTriggerProps {
   codeword: string;
   onMatch: () => void;
+  onTranscript?: (transcript: string) => void;
   className?: string;
 }
 
@@ -14,7 +15,7 @@ interface VoiceTriggerProps {
  * contains the codeword (case-insensitive), `onMatch` fires once.
  * Falls back gracefully when SpeechRecognition is unavailable.
  */
-export function VoiceTrigger({ codeword, onMatch, className }: VoiceTriggerProps) {
+export function VoiceTrigger({ codeword, onMatch, onTranscript, className }: VoiceTriggerProps) {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
   const [lastHeard, setLastHeard] = useState<string>('');
@@ -36,10 +37,19 @@ export function VoiceTrigger({ codeword, onMatch, className }: VoiceTriggerProps
     rec.onresult = (ev: any) => {
       const transcript = Array.from(ev.results)
         .map((r: any) => r[0].transcript)
-        .join(' ')
-        .toLowerCase();
-      setLastHeard(transcript.slice(-40));
-      if (!firedRef.current && transcript.includes(codeword.toLowerCase())) {
+        .join(' ');
+      
+      const cleanTranscript = transcript.toLowerCase();
+      setLastHeard(cleanTranscript.slice(-40));
+      
+      // Send transcript to backend for processing if callback provided
+      if (onTranscript && transcript.trim()) {
+        console.log('VoiceTrigger: Sending transcript to backend:', transcript.trim());
+        onTranscript(transcript.trim());
+      }
+      
+      // Also keep local fallback check
+      if (!firedRef.current && cleanTranscript.includes(codeword.toLowerCase())) {
         firedRef.current = true;
         onMatch();
         // cooldown so the same utterance doesn't refire
@@ -59,7 +69,7 @@ export function VoiceTrigger({ codeword, onMatch, className }: VoiceTriggerProps
       try { rec.stop(); } catch {}
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [codeword, onMatch]);
+  }, [codeword, onMatch, onTranscript]);
 
   const toggle = () => {
     if (!supported) return;

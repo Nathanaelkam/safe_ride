@@ -80,7 +80,7 @@ async def list_contacts(
 @router.put("/{contact_id}/respond", response_model=ContactResponse)
 async def respond_handshake(
     contact_id: UUID,
-    action: HandshakeStatus,
+    action: HandshakeStatus = Query(..., description="Action to take: ACCEPTED or REJECTED"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -102,6 +102,20 @@ async def respond_handshake(
     await db.refresh(contact)
     inc_contacts_created()
     return contact # pragma: no cover
+
+@router.get("/incoming", response_model=List[ContactResponse])
+async def get_incoming_requests(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get pending contact requests where current user is being added by others."""
+    result = await db.execute(
+        select(UserContact).where(
+            UserContact.contact_phone == current_user.phone_number,
+            UserContact.status == HandshakeStatus.PENDING
+        )
+    )
+    return result.scalars().all()
 
 @router.get("/user/{user_id}", response_model=List[ContactResponse])
 async def get_contacts_by_user(user_id: str, db: AsyncSession = Depends(get_db)):

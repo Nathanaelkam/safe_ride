@@ -5,6 +5,7 @@ import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { MapboxDirectRoutePreview } from '@/components/map/MapboxDirectRoutePreview';
 import { SimpleMapFallback } from '@/components/map/SimpleMapFallback';
+import { useTripStore } from '@/store/tripStore';
 import { cn } from '@/utils/cn';
 
 interface Destination {
@@ -23,7 +24,7 @@ interface TripConfirmationProps {
 }
 
 export function TripConfirmation({ destination, onStartTrip, onBack, className }: TripConfirmationProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const { startTrip, isLoading, error, setPlannedDestination } = useTripStore();
   const [useMapboxFallback, setUseMapboxFallback] = useState(false);
   
   // Check if Mapbox token is available
@@ -31,10 +32,19 @@ export function TripConfirmation({ destination, onStartTrip, onBack, className }
     process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN.length > 10;
 
   const handleStartTrip = async () => {
-    setIsLoading(true);
-    // Simulate trip initialization
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    onStartTrip();
+    try {
+      // Set the planned destination in the store
+      setPlannedDestination(destination);
+      
+      // Start the trip via the backend
+      await startTrip();
+      
+      // Call the callback to update UI
+      onStartTrip();
+    } catch (err) {
+      console.error('Failed to start trip:', err);
+      // Error is already handled in the store
+    }
   };
 
   return (
@@ -142,6 +152,12 @@ export function TripConfirmation({ destination, onStartTrip, onBack, className }
             </span>
           )}
         </Button>
+        
+        {error && (
+          <div className="text-sm text-red-500 text-center px-4 py-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            {error}
+          </div>
+        )}
         
         <button
           onClick={onBack}

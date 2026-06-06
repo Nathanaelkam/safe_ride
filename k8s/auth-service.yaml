@@ -39,8 +39,10 @@ metadata:
   name: auth-service
   namespace: seva
 spec:
+  type: NodePort
   selector:
     app: auth
   ports:
     - port: 8000
       targetPort: 8000
+      nodePort: 30001

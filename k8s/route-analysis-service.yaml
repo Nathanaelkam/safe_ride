@@ -34,8 +34,10 @@ metadata:
   name: route-analysis-service
   namespace: seva
 spec:
+  type: NodePort
   selector:
     app: route-analysis
   ports:
     - port: 8000
       targetPort: 8000
+      nodePort: 30004

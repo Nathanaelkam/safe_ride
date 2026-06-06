@@ -41,8 +41,10 @@ metadata:
   name: tracking-service
   namespace: seva
 spec:
+  type: NodePort
   selector:
     app: tracking
   ports:
     - port: 8000
       targetPort: 8000
+      nodePort: 30002

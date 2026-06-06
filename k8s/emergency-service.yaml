@@ -34,8 +34,10 @@ metadata:
   name: emergency-service
   namespace: seva
 spec:
+  type: NodePort
   selector:
     app: emergency
   ports:
     - port: 8000
       targetPort: 8000
+      nodePort: 30003

@@ -10,11 +10,12 @@ import { useAuthStore } from '@/store/authStore';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useAuthStore();
+  const { registerInit, registerVerify, registrationStep } = useAuthStore();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,19 +23,71 @@ export default function RegisterPage() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    
     try {
-      await register({
-        full_name: fullName,
-        phone_number: phoneNumber,
-        password: password
-      });
-      router.push('/trip');
+      if (registrationStep === 'form') {
+        // Step 1: Send OTP
+        await registerInit({
+          full_name: fullName,
+          phone_number: phoneNumber,
+          password: password,
+          email: email
+        });
+      } else if (registrationStep === 'otp') {
+        // Step 2: Verify OTP and complete registration
+        await registerVerify(otp);
+        router.push('/trip');
+      }
     } catch (err: any) {
       setError(err?.message || 'Registration failed. Please try again.');
       console.error('Registration error:', err);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (registrationStep === 'otp') {
+    return (
+      <div className="animate-reveal-up">
+        <p className="eyebrow mb-4">Verify</p>
+        <h1 className="font-display text-display-md tracking-tight mb-3">
+          Check your <span className="italic">email</span>.
+        </h1>
+        <p className="text-cream/55 mb-10">
+          We sent a verification code to <strong>{email}</strong>. Enter it below to complete your registration.
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-7">
+          <Input
+            label="Verification code"
+            name="otp"
+            required
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            placeholder="123456"
+            maxLength={6}
+          />
+
+          {error && <p className="text-sm text-terracotta-400">{error}</p>}
+
+          <Button type="submit" fullWidth size="lg" disabled={submitting}>
+            {submitting ? 'Verifying…' : 'Verify & Complete Registration'}
+            {!submitting && <ArrowRight size={16} />}
+          </Button>
+        </form>
+
+        <div className="mt-10 hairline" />
+        <p className="mt-6 text-sm text-cream/55">
+          Didn't receive the code?{' '}
+          <button 
+            onClick={() => window.location.reload()} 
+            className="text-cream underline underline-offset-4 decoration-terracotta"
+          >
+            Try again
+          </button>
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -90,7 +143,7 @@ export default function RegisterPage() {
         {error && <p className="text-sm text-terracotta-400">{error}</p>}
 
         <Button type="submit" fullWidth size="lg" disabled={submitting}>
-          {submitting ? 'Creating…' : 'Create my account'}
+          {submitting ? 'Sending code…' : 'Send verification code'}
           {!submitting && <ArrowRight size={16} />}
         </Button>
       </form>

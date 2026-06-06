@@ -8,8 +8,13 @@ interface AuthState {
   isAuthenticated: boolean;
   token: string | null;
   refreshToken: string | null;
+  // Registration states
+  registrationSession: string | null;
+  registrationStep: 'form' | 'otp' | 'complete';
+  
   login: (phoneNumber: string, password: string) => Promise<void>;
-  register: (data: { full_name: string; phone_number: string; password: string }) => Promise<void>;
+  registerInit: (data: { full_name: string; phone_number: string; password: string; email: string }) => Promise<void>;
+  registerVerify: (otp: string) => Promise<void>;
   setUser: (user: User) => void;
   logout: () => void;
   _hasHydrated: boolean;
@@ -23,6 +28,8 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       token: null,
       refreshToken: null,
+      registrationSession: null,
+      registrationStep: 'form',
       _hasHydrated: false,
       
       login: async (phoneNumber: string, password: string) => {
@@ -41,18 +48,42 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      register: async (data: { full_name: string; phone_number: string; password: string }) => {
+      registerInit: async (data: { full_name: string; phone_number: string; password: string; email: string }) => {
         try {
-          const response = await api.register(data);
+          const response = await api.registerInit(data);
+          set({ 
+            registrationSession: response.session_token,
+            registrationStep: 'otp'
+          });
+        } catch (error) {
+          console.error('Registration init failed:', error);
+          throw error;
+        }
+      },
+
+      registerVerify: async (otp: string) => {
+        try {
+          const { registrationSession } = get();
+          if (!registrationSession) {
+            throw new Error('No registration session found');
+          }
+
+          const response = await api.registerVerify({
+            session_token: registrationSession,
+            otp
+          });
+
           api.setToken(response.access_token);
           set({ 
             user: response.user,
             token: response.access_token,
             refreshToken: response.refresh_token,
-            isAuthenticated: true 
+            isAuthenticated: true,
+            registrationSession: null,
+            registrationStep: 'complete'
           });
         } catch (error) {
-          console.error('Registration failed:', error);
+          console.error('Registration verification failed:', error);
           throw error;
         }
       },
@@ -65,7 +96,9 @@ export const useAuthStore = create<AuthState>()(
           user: null, 
           isAuthenticated: false, 
           token: null, 
-          refreshToken: null 
+          refreshToken: null,
+          registrationSession: null,
+          registrationStep: 'form'
         });
       },
       

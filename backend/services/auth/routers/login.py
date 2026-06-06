@@ -31,5 +31,6 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     return { # pragma: no cover
         "access_token": access_token,
         "refresh_token": raw_refresh,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "user": user
     }

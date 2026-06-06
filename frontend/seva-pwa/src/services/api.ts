@@ -48,12 +48,25 @@ class ApiService {
     return this.handleResponse(response);
   }
 
-  async register(payload: { 
+  async registerInit(payload: { 
     full_name: string; 
     phone_number: string; 
-    password: string; 
+    password: string;
+    email: string;
+  }): Promise<{ session_token: string; message: string }> {
+    const response = await fetch(`${AUTH_BASE}/auth/register/init`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    return this.handleResponse(response);
+  }
+
+  async registerVerify(payload: {
+    session_token: string;
+    otp: string;
   }): Promise<{ access_token: string; refresh_token: string; user: User }> {
-    const response = await fetch(`${AUTH_BASE}/auth/register`, {
+    const response = await fetch(`${AUTH_BASE}/auth/register/verify`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload),
@@ -209,7 +222,7 @@ class ApiService {
     }
   }
 
-  async addEmergencyContact(userId: string, contact: {
+  async addEmergencyContact(contact: {
     contact_name: string;
     contact_phone: string;
   }) {

@@ -149,8 +149,8 @@ export function useEmergencyContacts(initialContacts?: EmergencyContact[]) {
       // Convert to backend format
       const backendContact = frontendToBackend(contact);
       
-      console.log('useEmergencyContacts: Adding contact with userId:', userId, 'contact:', backendContact);
-      const newBackendContact: BackendContact = await api.addEmergencyContact(userId, backendContact);
+      console.log('useEmergencyContacts: Adding contact with contact:', backendContact);
+      const newBackendContact: BackendContact = await api.addEmergencyContact(backendContact);
       
       // Convert back to frontend format
       const newFrontendContact = backendToFrontend(newBackendContact);

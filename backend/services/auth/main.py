@@ -23,24 +23,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Seva Auth Service", version="1.0.0", lifespan=lifespan)
 
-<<<<<<< HEAD
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-=======
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*", "http://localhost:8080"],        
->>>>>>> 9e1a2d5e9f40502e343287cdc30af6f73ac5f7b7
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-<<<<<<< HEAD
-
-=======
->>>>>>> 9e1a2d5e9f40502e343287cdc30af6f73ac5f7b7
 app.add_middleware(PrometheusMiddleware)
 app.add_route("/metrics", metrics_endpoint)
 
@@ -50,7 +40,6 @@ app.include_router(contacts.router)
 app.include_router(refresh.router)
 app.include_router(internal.router)
 app.include_router(otp.router)
-app.include_router(register.router)
 
 
 @app.get("/health", tags=["health"])

@@ -11,6 +11,7 @@ import { useEmergencyContacts } from '@/hooks/useEmergencyContacts';
 import type { EmergencyContact } from '@/types';
 import { formatPhone } from '@/utils/format';
 import { api } from '@/services/api';
+import { useAuthStore } from '@/store/authStore';
 
 const initialContacts: EmergencyContact[] = [
   { id: 'c1', name: 'Sister Bih', relation: 'Sister', phone: '+237 677 442 199', isPrimary: true },

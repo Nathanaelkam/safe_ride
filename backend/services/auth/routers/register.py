@@ -2,14 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from ..database import get_db
-from ..models import User, RegistrationSession
+from ..models import User, RegistrationSession, RefreshToken
 from ..schemas import (
     RegistrationInitRequest,
     RegistrationInitResponse,
     RegistrationVerifyRequest,
     UserOut,
+    Token,
 )
-from ..auth_utils import hash_password
+from ..auth_utils import hash_password, create_access_token, generate_refresh_token, hash_token
 from ..metrics import inc_active_users
 from ..email_service import send_otp_email
 import random
@@ -63,7 +64,7 @@ async def register_init(data: RegistrationInitRequest, db: AsyncSession = Depend
     )
 
 
-@router.post("/register/verify", response_model=UserOut, status_code=201)
+@router.post("/register/verify", response_model=Token, status_code=201)
 async def register_verify(data: RegistrationVerifyRequest, db: AsyncSession = Depends(get_db)):
     # Find the session
     result = await db.execute(
@@ -91,5 +92,22 @@ async def register_verify(data: RegistrationVerifyRequest, db: AsyncSession = De
     await db.commit()
     await db.refresh(user)
 
+    # Generate tokens
+    access_token = create_access_token({"sub": str(user.id)})
+    
+    # Generate refresh token
+    raw_refresh = generate_refresh_token()
+    refresh_hash = hash_token(raw_refresh)
+    from ..config import settings
+    expires = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+    
+    db.add(RefreshToken(user_id=user.id, token_hash=refresh_hash, expires_at=expires))
+    await db.commit()
+
     inc_active_users()
-    return user
+    return {
+        "access_token": access_token,
+        "refresh_token": raw_refresh,
+        "token_type": "bearer",
+        "user": user
+    }

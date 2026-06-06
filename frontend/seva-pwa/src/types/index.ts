@@ -49,12 +49,16 @@ export interface Trip {
 
 export interface User {
   id: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  emergencyContacts: EmergencyContact[];
+  full_name?: string;  // Match backend field name
+  phone_number: string;  // Match backend field name
+  created_at?: string;  // Backend field
+  // Legacy fields for compatibility
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  emergencyContacts?: EmergencyContact[];
   voiceCodeword?: string;
-  joinedAt: number;
+  joinedAt?: number;
 }
 
 // Backend trip response structure

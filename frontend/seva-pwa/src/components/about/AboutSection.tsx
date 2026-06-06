@@ -27,7 +27,7 @@ const engineers: Engineer[] = [
     bio: 'Passionate software architect with expertise in building scalable, secure applications. Specializes in full-stack development with a focus on user safety and innovative mobile solutions.',
     skills: ['React Native', 'Node.js', 'System Architecture', 'Cloud Infrastructure', 'Security'],
     experience: '8+ years',
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop&crop=face&auto=format',
+    image: '/amagna-tchounkeu.jpg',
     social: {
       github: '#',
       linkedin: '#',
@@ -41,7 +41,7 @@ const engineers: Engineer[] = [
     bio: 'Experienced technical architect passionate about creating safe, reliable transportation solutions. Expert in distributed systems and real-time applications.',
     skills: ['TypeScript', 'Microservices', 'Real-time Systems', 'Mobile Development', 'DevOps'],
     experience: '7+ years',
-    image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=300&fit=crop&crop=face&auto=format',
+    image: '/kam-kamdem.jpg',
     social: {
       github: '#',
       linkedin: '#',

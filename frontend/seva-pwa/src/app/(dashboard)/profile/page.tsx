@@ -22,6 +22,7 @@ const initialContacts: EmergencyContact[] = [
 export default function ProfilePage() {
   const { theme, toggleTheme } = useTheme();
   const { contacts, addContact, removeContact, loading, error } = useEmergencyContacts(initialContacts);
+  const { user } = useAuthStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [relation, setRelation] = useState('');
@@ -29,7 +30,12 @@ export default function ProfilePage() {
   const [codeword, setCodeword] = useState('lavender');
   const [pendingRequests, setPendingRequests] = useState([]);
 
-  console.log('=== PROFILE PAGE EMERGENCY CONTACTS DEBUG ===');
+  console.log('=== PROFILE PAGE DEBUG ===');
+  console.log('User object:', user);
+  console.log('User full_name:', user?.full_name);
+  console.log('User fullName:', user?.fullName);
+  console.log('User phone_number:', user?.phone_number);
+  console.log('User phone:', user?.phone);
   console.log('Contacts:', contacts);
   console.log('Loading:', loading);
   console.log('Error:', error);
@@ -121,11 +127,11 @@ export default function ProfilePage() {
         <div className="lg:col-span-5 lg:text-right">
           <div className="inline-flex items-center gap-4 rounded-2xl border border-cream/10 px-5 py-4">
             <div className="h-12 w-12 rounded-full bg-gradient-to-br from-terracotta to-ochre flex items-center justify-center font-display text-lg">
-              A
+              {(user?.full_name || user?.fullName)?.[0]?.toUpperCase() || 'U'}
             </div>
             <div className="text-left">
-              <p className="font-display text-lg tracking-tight">Amara Nkeng</p>
-              <p className="text-xs text-cream/55">+237 670 112 880</p>
+              <p className="font-display text-lg tracking-tight">{user?.full_name || user?.fullName || 'User'}</p>
+              <p className="text-xs text-cream/55">{user?.phone_number || user?.phone || 'No phone number'}</p>
             </div>
             <button aria-label="Edit profile" className="ml-3 text-cream/55 hover:text-cream">
               <Edit3 size={14} />

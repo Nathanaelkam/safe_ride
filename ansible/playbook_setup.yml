@@ -1,0 +1,199 @@
+---
+- name: Setup VPS – install packages, Kubernetes, Helm, and clone repo
+  hosts: vps
+  become: yes
+  vars:
+    repo_url: "https://github.com/Nathanaelkam/safe_ride.git"
+    repo_dest: "/opt/seva"
+
+  tasks:
+    # ----- 0. Clean any broken Docker sources -----
+    - name: Remove broken Docker apt source
+      file:
+        path: /etc/apt/sources.list.d/docker.list
+        state: absent
+
+    - name: Remove Docker keyring (will be recreated)
+      file:
+        path: /etc/apt/keyrings/docker.asc
+        state: absent
+
+    # ----- 1. System Update & Prerequisites -----
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install essential system packages
+      apt:
+        name:
+          - curl
+          - git
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          - software-properties-common
+        state: present
+
+    # ----- 2. Install Docker (container runtime) -----
+    - name: Install Docker via get.docker.com
+      shell: |
+        curl -fsSL https://get.docker.com | sh
+      args:
+        creates: /usr/bin/docker
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add current user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    # ----- 2b. Install a working containerd for Kubernetes -----
+    - name: Remove broken containerd if present
+      apt:
+        name: containerd
+        state: absent
+
+    - name: Install containerd from Docker repository
+      apt:
+        name: containerd.io
+        update_cache: yes
+        state: present
+
+    - name: Create containerd config directory
+      file:
+        path: /etc/containerd
+        state: directory
+
+    - name: Write minimal containerd config with CRI enabled
+      copy:
+        dest: /etc/containerd/config.toml
+        content: |
+          version = 2
+          [plugins]
+            [plugins."io.containerd.grpc.v1.cri"]
+              sandbox_image = "registry.k8s.io/pause:3.9"
+              [plugins."io.containerd.grpc.v1.cri".containerd]
+                [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+                  runtime_type = "io.containerd.runc.v2"
+                  [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+                    SystemdCgroup = true
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+        enabled: yes
+
+    # ----- 2c. Enable kernel modules for Kubernetes networking -----
+    - name: Load br_netfilter module
+      modprobe:
+        name: br_netfilter
+        state: present
+
+    - name: Ensure bridge-nf-call-iptables is enabled
+      sysctl:
+        name: net.bridge.bridge-nf-call-iptables
+        value: '1'
+        sysctl_set: yes
+        state: present
+
+    # ----- 3. Install Kubernetes (kubeadm, kubelet, kubectl) -----
+    - name: Add Kubernetes GPG key
+      apt_key:
+        url: https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key
+        state: present
+
+    - name: Add Kubernetes repository
+      apt_repository:
+        repo: "deb https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /"
+        state: present
+
+    - name: Install Kubernetes packages
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        update_cache: yes
+        state: present
+
+    - name: Hold Kubernetes packages
+      dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+    # ----- 4. Initialize Kubernetes cluster (single‑node) -----
+    - name: Initialize the cluster with kubeadm
+      shell: |
+        kubeadm init --pod-network-cidr=10.244.0.0/16 \
+                     --cri-socket unix:///run/containerd/containerd.sock
+      args:
+        creates: /etc/kubernetes/admin.conf
+      register: kubeadm_init
+
+    # ----- 5. Configure kubectl for the user -----
+    - name: Create .kube directory
+      file:
+        path: /home/{{ ansible_user }}/.kube
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Copy admin.conf to user's kubeconfig
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/{{ ansible_user }}/.kube/config
+        remote_src: yes
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Allow pod scheduling on control-plane node (single‑node cluster)
+      shell: kubectl taint nodes --all node-role.kubernetes.io/control-plane- --overwrite
+      when: kubeadm_init.changed
+
+    - name: Copy admin.conf to user's kubeconfig
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/{{ ansible_user }}/.kube/config
+        remote_src: yes
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Allow pod scheduling on control-plane node (single‑node cluster)
+      shell: kubectl taint nodes --all node-role.kubernetes.io/control-plane- --overwrite
+      when: kubeadm_init.changed
+
+    # ----- 6. Install Pod Network (Flannel) -----
+    - name: Apply Flannel pod network manifest
+      shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+      args:
+        executable: /bin/bash
+      when: kubeadm_init.changed
+
+    # ----- 7. Install Helm (package manager) -----
+    - name: Download and install Helm
+      shell: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+
+    # ----- 8. Clone the Seva repository -----
+    - name: Clone Seva repository
+      git:
+        repo: "https://github.com/Nathanaelkam/safe_ride.git"
+        dest: "/opt/seva"
+        version: main
+        force: yes

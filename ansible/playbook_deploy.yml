@@ -1,0 +1,72 @@
+---
+- name: Deploy Seva microservices and monitoring stack
+  hosts: vps
+  gather_facts: no
+  become: yes
+  vars:
+    repo_dest: "/opt/seva"
+    k8s_namespace: "seva"
+    grafana_admin_password: "admin123"
+
+  tasks:
+    # ----- 0. Ensure kubeconfig is available for root -----
+    #- name: Ensure kubeconfig is available for root
+     # copy:
+      #  src: /home/{{ ansible_user }}/.kube/config
+       # dest: /root/.kube/config
+        #remote_src: yes
+        #owner: root
+        #group: root
+        #mode: '0600'
+
+    # ----- 1. Create the Seva namespace -----
+    #- name: Create Seva namespace
+     # command: kubectl create namespace {{ k8s_namespace }}
+      #register: ns_result
+      #failed_when: ns_result.rc != 0 and "AlreadyExists" not in ns_result.stderr
+
+    # ----- 2. Deploy all Seva manifests (microservices, databases, Redis) -----
+    - name: Apply all Kubernetes manifests
+      shell: |
+        timeout 30 kubectl apply -f {{ repo_dest }}/k8s/ -n {{ k8s_namespace }}
+      args:
+        chdir: "{{ repo_dest }}/k8s/"
+
+    # ----- 3. Install Prometheus & Grafana (via Helm) -----
+    - name: Add Prometheus Community Helm repository
+      shell: |
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm repo update
+
+    - name: Deploy kube-prometheus-stack (minimal)
+      shell: |
+        helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+          --namespace monitoring --create-namespace \
+          --set grafana.adminPassword={{ grafana_admin_password }} \
+          --set prometheus.service.type=NodePort \
+          --set grafana.service.type=NodePort \
+          --set prometheus.resources.requests.memory=256Mi \
+          --set prometheus.resources.limits.memory=512Mi \
+          --set grafana.resources.requests.memory=128Mi \
+          --set grafana.resources.limits.memory=256Mi \
+          --set alertmanager.enabled=false \
+          --set nodeExporter.enabled=false \
+          --set kube-state-metrics.enabled=false \
+          --set prometheusOperator.admissionWebhooks.enabled=false \
+          --set prometheusOperator.admissionWebhooks.patch.enabled=false \
+          --wait --timeout 10m
+
+    # ----- 4. Display access information -----
+    - name: Get Grafana NodePort
+      shell: kubectl get svc -n monitoring monitoring-grafana -o jsonpath='{.spec.ports[0].nodePort}'
+      register: grafana_port
+
+    - name: Get Prometheus NodePort
+      shell: kubectl get svc -n monitoring monitoring-kube-prometheus-prometheus -o jsonpath='{.spec.ports[0].nodePort}'
+      register: prometheus_port
+
+    - name: Print access URLs
+      debug:
+        msg:
+          - "Grafana: http://{{ ansible_host }}:{{ grafana_port.stdout }} (admin / {{ grafana_admin_password }})"
+          - "Prometheus: http://{{ ansible_host }}:{{ prometheus_port.stdout }}"

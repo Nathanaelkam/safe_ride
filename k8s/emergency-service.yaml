@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: emergency
-          image: nathanaelkam/seva-emergency:latest   # ← replace with your real image
+          image: kamnathanael/seva_app:emergency   # ← replace with your real image
           ports:
             - containerPort: 8000
           env:

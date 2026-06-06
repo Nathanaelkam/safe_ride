@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: auth
-          image: nathanaelkam/seva-auth:latest   # ← replace with your real image
+          image: kamnathanael/seva_app:auth   # ← replace with your real image
           ports:
             - containerPort: 8000
           env:

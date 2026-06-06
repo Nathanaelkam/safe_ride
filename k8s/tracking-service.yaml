@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: tracking
-          image: nathanaelkam/seva-tracking:latest   # ← replace with your real image
+          image: kamnathanael/seva_app:tracking   # ← replace with your real image
           ports:
             - containerPort: 8000
           env:

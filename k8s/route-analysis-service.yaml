@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: route-analysis
-          image: nathanaelkam/seva-route-analysis:latest   # ← replace with your real image
+          image: kamnathanael/seva_app:route_analysis   # ← replace with your real image
           ports:
             - containerPort: 8000
           env:

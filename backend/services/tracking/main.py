@@ -19,10 +19,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Seva Tracking Service", version="1.0.0", lifespan=lifespan)
-
+ALLOWED_FRONTEND_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://localhost:5500",    # Very common for vanilla HTML/JS (VS Code Live Server)
+    "http://127.0.0.1:5500",    # Alternative local loopback address
+    "http://127.0.0.1:8080",
+    "http://10.153.122.254:8080",
+    "http://192.168.1.133:8080",
+    # "https://yourdomain.com", # Uncomment and add your real domain when deployed!
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*", "http://localhost:8080"],        
+    allow_origins=ALLOWED_FRONTEND_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
